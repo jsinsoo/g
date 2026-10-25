@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>물리 레일 러너: 기차 피하고 정답 레일로</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#EEF3F7; --grid:#D3E0EC; --grid2:#AFC5DA; --ink:#1F3A5F; --ink-soft:#56708F;
+  --marker:#F2C94C; --pen:#C8453B; --block:#DAE5F0; --ok:#2E8B57; --ground:#C7D5E3;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#13253A; --grid:#1B324D; --grid2:#2B4B70; --ink:#DCE8F5; --ink-soft:#9DB4CE;
+    --marker:#E8B93A; --pen:#FF7A6B; --block:#1D3651; --ok:#5CC98A; --ground:#0E1C2D;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#13253A; --grid:#1B324D; --grid2:#2B4B70; --ink:#DCE8F5; --ink-soft:#9DB4CE;
+  --marker:#E8B93A; --pen:#FF7A6B; --block:#1D3651; --ok:#5CC98A; --ground:#0E1C2D;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html,body{height:100%;margin:0}
+body{
+  background:var(--paper);color:var(--ink);
+  font-family:"Gowun Dodum",system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+}
+#app{height:100%;display:flex;flex-direction:column;max-width:1100px;margin:0 auto}
+#hud{display:flex;align-items:baseline;gap:14px;padding:10px 16px 6px;flex-wrap:wrap;font-family:"Jua",system-ui,sans-serif}
+#dist{font-size:1.3rem}
+.soft{color:var(--ink-soft)}
+.spacer{flex:1}
+#hearts{color:var(--pen);font-size:1.15rem;letter-spacing:2px}
+#wrap{flex:1;position:relative;min-height:0;border-top:2px solid var(--ink);overflow:hidden}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#keyhint{padding:8px 16px;color:var(--ink-soft);font-size:.9rem;border-top:2px solid var(--ink)}
+@media (pointer:coarse){#keyhint{display:none}}
+.float{
+  position:absolute;left:50%;top:10px;transform:translateX(-50%);width:calc(100% - 20px);max-width:540px;
+  background:color-mix(in srgb,var(--paper) 92%,transparent);border:2px solid var(--ink);border-radius:4px;
+  box-shadow:4px 4px 0 var(--ink);padding:10px 14px;pointer-events:none;
+}
+.float[hidden]{display:none}
+#qMeta{font-size:.85rem;color:var(--ink-soft);margin-bottom:2px}
+#qText{font-family:"Jua",sans-serif;font-size:1.1rem;line-height:1.35;margin-bottom:6px}
+.qo{display:flex;gap:8px;align-items:baseline;line-height:1.45;font-size:.95rem;padding:2px 0}
+.qo b{font-family:"Jua",sans-serif;font-weight:400;display:inline-block;min-width:1.6em;text-align:center;
+  background:var(--marker);color:#1F3A5F;border:1.5px solid var(--ink);border-radius:4px}
+.qo .lane{color:var(--ink-soft);font-size:.8rem;margin-left:auto;white-space:nowrap}
+#toastTitle{font-family:"Jua",sans-serif;font-size:1.1rem;margin-bottom:2px}
+#toastExp{font-size:.92rem;line-height:1.55}
+.overlay{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:14px;
+  background:color-mix(in srgb,var(--paper) 72%,transparent);
+}
+.overlay[hidden]{display:none}
+.card{
+  background-color:var(--paper);
+  background-image:linear-gradient(90deg,transparent 26px,var(--pen) 26px,var(--pen) 28px,transparent 28px);
+  border:2px solid var(--ink);border-radius:4px;box-shadow:6px 6px 0 var(--ink);
+  max-width:540px;width:100%;padding:18px 20px 20px 42px;max-height:100%;overflow:auto;
+}
+.card h1,.card h2{font-family:"Jua",sans-serif;font-weight:400;margin:0 0 10px;line-height:1.3}
+.card h1{font-size:2.1rem}
+.card h2{font-size:1.4rem}
+.card p{margin:0 0 12px;line-height:1.7}
+table.ctl{border-collapse:collapse;margin:2px 0 14px;width:100%;font-size:.95rem}
+table.ctl td{padding:6px 8px 6px 0;border-bottom:1px dashed var(--grid2)}
+table.ctl td:first-child{font-family:"Jua",sans-serif;white-space:nowrap}
+.btn{
+  font-family:"Jua",sans-serif;font-size:1.15rem;padding:10px 20px;border:2px solid var(--ink);border-radius:8px;
+  background:var(--marker);color:#1F3A5F;cursor:pointer;box-shadow:3px 3px 0 var(--ink);
+}
+.btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
+button:focus-visible{outline:3px solid var(--pen);outline-offset:2px}
+.stats{font-family:"Jua",sans-serif;font-size:1.1rem;line-height:1.8;margin-bottom:14px}
+:root[data-map="math"]{--marker:#8FD3C1;--ground:#D9D2E6}
+@media (prefers-color-scheme:dark){:root[data-map="math"]:not([data-theme="light"]){--marker:#4FB39A;--ground:#1E1830}}
+:root[data-theme="dark"][data-map="math"]{--marker:#4FB39A;--ground:#1E1830}
+.btnrow{display:flex;gap:10px;flex-wrap:wrap}
+.btn.alt{background:var(--block);color:var(--ink)}
+:root[data-map="chem"]{--marker:#F3A6B8;--ground:#E6D8C8}
+@media (prefers-color-scheme:dark){:root[data-map="chem"]:not([data-theme="light"]){--marker:#C9788C;--ground:#2A1D22}}
+:root[data-theme="dark"][data-map="chem"]{--marker:#C9788C;--ground:#2A1D22}
+.skins{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 14px}
+.skin{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 4px;width:70px;border:2px solid var(--ink);border-radius:8px;background:var(--block);color:var(--ink);font:inherit;font-size:.8rem;cursor:pointer}
+.skin.sel{background:var(--marker);color:#1F3A5F}
+.skin:disabled{opacity:.45;cursor:default}
+.sndbtn{font-family:"Jua",sans-serif;font-size:.9rem;padding:3px 10px;border:2px solid var(--ink);border-radius:6px;background:var(--block);color:var(--ink);cursor:pointer}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="hud">
+    <span id="dist">0 m</span>
+    <span class="soft" id="topic">역학 구간</span>
+    <span class="spacer"></span>
+    <span class="soft" id="best"></span>
+    <span id="score">0점</span>
+    <span id="hearts" aria-label="남은 하트">♥♥♥</span>
+    <button id="snd" class="sndbtn" tabindex="-1">♪ 켬</button>
+  </div>
+  <div id="wrap">
+    <canvas id="cv"></canvas>
+    <div id="qcard" class="float" hidden>
+      <div id="qMeta"></div>
+      <div id="qText"></div>
+      <div id="qOpts"></div>
+    </div>
+    <div id="toast" class="float" hidden>
+      <div id="toastTitle"></div>
+      <div id="toastExp"></div>
+    </div>
+    <div id="panel" class="overlay"><div class="card" id="panelCard"></div></div>
+  </div>
+  <div id="keyhint">← → 레일 이동, ↑ 또는 스페이스 점프, ↓ 슬라이드. 퀴즈가 뜨면 정답 글자가 적힌 레일로 달리세요.</div>
+</div>
+
+<script>
+(() => {
+// ---------- 문제 은행 (o[0]이 정답) ----------
+const QB = {
+  mech: [
+    {q:"등가속도 운동. 속도가 2초 동안 4 m/s에서 8 m/s로 변했다. 이동 거리는?", o:["12 m","16 m","8 m","24 m"], e:"평균 속도 (4+8)/2 = 6 m/s × 2 s."},
+    {q:"정지에서 출발한 등가속도 운동. 처음 2초 동안 4 m 이동했다면 다음 2초 동안은?", o:["12 m","8 m","16 m","4 m"], e:"같은 시간 간격의 이동 거리 비는 1 : 3 : 5 …"},
+    {q:"마찰 없는 30° 빗면을 미끄러지는 물체의 가속도는? (g = 10 m/s²)", o:["5 m/s²","10 m/s²","8.7 m/s²","2.5 m/s²"], e:"a = g sin30° = 10 × ½."},
+    {q:"수평면(마찰 없음) 위 1 kg과 도르래 너머 매달린 3 kg이 실로 연결. 가속도는? (g = 10)", o:["7.5 m/s²","10 m/s²","3.3 m/s²","2.5 m/s²"], e:"알짜힘은 매달린 물체의 무게 30 N, 전체 질량 4 kg."},
+    {q:"도르래 양쪽에 3 kg, 2 kg이 매달려 있다. 가속도는? (g = 10)", o:["2 m/s²","10 m/s²","5 m/s²","1 m/s²"], e:"(30 − 20) N ÷ 5 kg."},
+    {q:"도르래 양쪽 3 kg, 2 kg 문제에서 실의 장력은? (g = 10)", o:["24 N","20 N","30 N","25 N"], e:"2 kg 물체: T − 20 = 2 × 2."},
+    {q:"5 kg 물체를 수평으로 20 N 당긴다. 운동 마찰력이 5 N이면 가속도는?", o:["3 m/s²","4 m/s²","5 m/s²","1 m/s²"], e:"(20 − 5) ÷ 5."},
+    {q:"속력 v인 질량 m이 정지한 3m과 1차원 탄성 충돌. m의 나중 속도는?", o:["v/2, 반대 방향","v/2, 같은 방향","0","v, 반대 방향"], e:"v₁' = (m − 3m)/(m + 3m) × v = −v/2."},
+    {q:"같은 충돌에서 3m의 나중 속도는?", o:["v/2","v/3","v","v/4"], e:"v₂' = 2m/(4m) × v. 운동량 m·v = m(−v/2) + 3m(v/2) 확인."},
+    {q:"2 kg 공이 6 m/s로 벽에 부딪혀 4 m/s로 튕겨 나왔다. 충돌 시간 0.1초일 때 평균 힘은?", o:["200 N","40 N","20 N","400 N"], e:"Δp = 2 × (6 + 4) = 20 kg·m/s, F = 20 ÷ 0.1."},
+    {q:"높이 20 m에서 수평으로 10 m/s로 던진 공의 수평 도달 거리는? (g = 10)", o:["20 m","10 m","40 m","14 m"], e:"낙하 시간 √(2h/g) = 2 s, 거리 10 × 2."},
+    {q:"같은 공이 바닥에 닿는 순간의 속력은?", o:["10√5 m/s","30 m/s","20 m/s","10 m/s"], e:"수평 10, 연직 20. √(100 + 400) = √500."},
+    {q:"1 kg 물체가 2 m/s로 용수철(k = 100 N/m)에 부딪힌다. 최대 압축 길이는?", o:["0.2 m","0.02 m","0.4 m","2 m"], e:"½ × 1 × 4 = ½ × 100 × x², x² = 0.04."},
+    {q:"2 kg 물체가 10 m/s로 마찰 구간에 들어간다. 마찰력 4 N이면 멈출 때까지 거리는?", o:["25 m","50 m","12.5 m","5 m"], e:"운동 에너지 100 J을 마찰이 한 일 4 × s가 없앰."},
+    {q:"압력 2×10⁵ Pa로 일정하게 부피가 0.01 m³ 늘었다. 기체가 한 일은?", o:["2000 J","200 J","20000 J","20 J"], e:"W = PΔV."},
+    {q:"부피가 일정한 기체에 열 50 J을 공급하면 내부 에너지 변화는?", o:["50 J 증가","0","50 J 감소","100 J 증가"], e:"등적 과정은 W = 0 이라 Q = ΔU."},
+    {q:"이상 기체의 등온 팽창에서 흡수한 열 Q와 한 일 W의 관계는?", o:["Q = W","Q > W","Q < W","Q = 0"], e:"온도가 같으니 ΔU = 0."},
+    {q:"열효율 30% 열기관이 한 순환에 300 J의 일을 한다. 방출하는 열은?", o:["700 J","1000 J","300 J","90 J"], e:"흡수 열 300 ÷ 0.3 = 1000 J, 방출 1000 − 300."},
+    {q:"기차 한가운데서 앞뒤로 빛을 동시에 쐈다. 지면 관찰자가 볼 때 먼저 닿는 쪽은? (기차는 앞으로 이동)", o:["기차 뒤쪽","기차 앞쪽","동시에","알 수 없다"], e:"뒤쪽 벽이 빛을 마중 나가요. 동시성은 관찰자마다 달라요. 기차 안에서는 동시."},
+    {q:"우주선 안 철수가 볼 때, 지구에 있는 영희의 시계는?", o:["느리게 간다","빠르게 간다","똑같이 간다","멈춰 있다"], e:"상대 운동은 대칭이라 서로 상대의 시계가 느리다고 측정해요."},
+    {q:"물체의 고유 길이를 측정하는 관찰자는?", o:["물체에 대해 정지한 관찰자","물체와 반대로 움직이는 관찰자","광속으로 움직이는 관찰자","누구나 같다"], e:"움직이는 관찰자는 운동 방향 길이가 수축된 값을 재요."},
+    {q:"질량 1 g이 모두 에너지로 바뀌면? (c = 3×10⁸ m/s)", o:["9×10¹³ J","3×10⁸ J","9×10¹⁶ J","3×10⁵ J"], e:"E = 0.001 × (3×10⁸)² = 9×10¹³ J."}
+  ],
+  em: [
+    {q:"+q와 +4q가 3d 떨어져 있다. 두 전하 사이에서 전기장이 0인 곳은 +q로부터?", o:["d","1.5d","2d","0.75d"], e:"q/x² = 4q/(3d − x)² 에서 3d − x = 2x."},
+    {q:"+q와 −q의 중점에서 전기장 방향은?", o:["−q 쪽","+q 쪽","0이라 방향 없음","두 전하를 잇는 선에 수직"], e:"두 전하의 전기장이 모두 −q 쪽을 향해 더해져요."},
+    {q:"수소 원자에서 n=4→2 전이와 n=3→2 전이 중 방출 빛의 파장이 긴 것은?", o:["n=3→2","n=4→2","같다","비교할 수 없다"], e:"에너지 차가 작을수록 파장이 길어요. 3→2가 656 nm 붉은 선."},
+    {q:"n=2 상태 수소 원자의 전자를 떼어내는 데 필요한 최소 에너지는?", o:["3.4 eV","13.6 eV","10.2 eV","1.51 eV"], e:"E₂ = −13.6/4 = −3.4 eV에서 0 eV까지."},
+    {q:"바닥상태 수소 원자가 12.09 eV 광자를 흡수하면 전자는 몇 번 준위로?", o:["n = 3","n = 2","n = 4","이온화된다"], e:"−13.6 + 12.09 = −1.51 eV = E₃."},
+    {q:"바닥상태 수소 원자가 흡수할 수 없는 광자 에너지는?", o:["11.0 eV","10.2 eV","12.09 eV","12.75 eV"], e:"준위 차와 정확히 같아야 해요. 12.75 eV는 n = 4."},
+    {q:"n = 4에 있는 전자들이 낮은 준위로 전이할 때 나올 수 있는 스펙트럼선 수는?", o:["6","3","4","10"], e:"4개 준위에서 두 개를 고르는 경우 ₄C₂."},
+    {q:"반도체의 띠 간격이 2배가 되면 흡수할 수 있는 빛의 최대 파장은?", o:["1/2배","2배","4배","변화 없음"], e:"λ_max = hc/E_g."},
+    {q:"다이오드 4개로 만든 브리지 회로의 역할은?", o:["전파 정류","반파 정류","전압 증폭","발진"], e:"교류의 양쪽 반주기를 모두 한 방향으로 흘려요. 다이오드 1개면 반파 정류."},
+    {q:"p-n 접합에 순방향 전압을 걸면 공핍층은?", o:["좁아진다","넓어진다","변하지 않는다","두 개가 된다"], e:"전위 장벽이 낮아져 운반자가 넘어가요."},
+    {q:"같은 방향 전류 I, 2I가 흐르는 평행 도선이 3d 떨어져 있다. 자기장이 0인 곳은 I 도선으로부터?", o:["d (두 도선 사이)","2d (두 도선 사이)","바깥쪽 d","없다"], e:"같은 방향 전류면 사이에서 자기장이 반대. I/x = 2I/(3d − x)."},
+    {q:"크기가 같고 방향이 반대인 전류가 흐르는 두 평행 도선의 중점 자기장은?", o:["한 도선 자기장의 2배","0","한 도선과 같다","절반"], e:"오른손 법칙으로 두 자기장이 같은 방향이에요."},
+    {q:"원형 도선의 반지름만 2배로 하면 중심 자기장은?", o:["1/2배","2배","1/4배","변화 없음"], e:"B = μ₀I/(2r)."},
+    {q:"코일 위에서 떨어뜨린 자석이 코일을 통과할 때 가속도는?", o:["g보다 작다","g와 같다","g보다 크다","0"], e:"유도 전류가 자석 운동을 방해하는 쪽으로 힘을 만들어요(렌츠 법칙)."},
+    {q:"자석이 코일에 가까워질 때와 멀어질 때 유도 전류 방향은?", o:["서로 반대","같다","가까워질 때만 흐른다","멀어질 때만 흐른다"], e:"자속이 증가할 때와 감소할 때 방해하는 방향이 반대예요."},
+    {q:"B = 0.5 T에서 길이 0.4 m 도체 막대가 5 m/s로 움직인다. 유도 기전력은?", o:["1 V","2 V","0.1 V","10 V"], e:"V = BLv = 0.5 × 0.4 × 5."},
+    {q:"같은 막대 회로의 저항이 2 Ω이면 유도 전류는?", o:["0.5 A","2 A","1 A","0.25 A"], e:"I = 1 V ÷ 2 Ω."},
+    {q:"구리관 속에서 자석이 천천히 떨어지는 이유는?", o:["맴돌이 전류","자석과 구리의 인력","공기 저항","정전기력"], e:"관 벽에 유도된 맴돌이 전류가 자석의 운동을 방해해요."},
+    {q:"강자성체를 퀴리 온도 이상으로 가열하면?", o:["상자성체처럼 된다","반자성체가 된다","초전도체가 된다","더 강한 자석이 된다"], e:"열운동 때문에 자기 구역의 정렬이 무너져요."},
+    {q:"전하 +q에 작용하는 전기력이 −q일 때와 비교하면? (같은 전기장)", o:["크기 같고 방향 반대","크기 2배","같은 방향","0"], e:"F = qE."}
+  ],
+  modern: [
+    {q:"매질 A에서 B로 입사각 60°, 굴절각 30°. n_B/n_A는?", o:["√3","2","1/√3","√3/2"], e:"sin60°/sin30° = (√3/2)/(1/2)."},
+    {q:"같은 경우 B에서 빛의 속력은 A의 몇 배?", o:["1/√3","√3","2","1/2"], e:"v ∝ 1/n."},
+    {q:"굴절률 2인 매질에서 공기로 나갈 때 임계각은?", o:["30°","45°","60°","90°"], e:"sin θc = 1/2."},
+    {q:"굴절률 √2인 매질에서 공기로 나갈 때 임계각은?", o:["45°","30°","60°","35°"], e:"sin θc = 1/√2."},
+    {q:"광섬유에서 코어와 클래딩의 굴절률 차를 키우면 임계각은?", o:["작아진다","커진다","변하지 않는다","90°가 된다"], e:"sin θc = n_클래딩/n_코어. 전반사가 더 잘 일어나요."},
+    {q:"물결파가 깊은 곳에서 얕은 곳으로 가면 파장은?", o:["짧아진다","길어진다","변하지 않는다","0이 된다"], e:"얕을수록 느리고 진동수는 그대로라 파장이 줄어요."},
+    {q:"같은 위상의 두 파원, 파장 2 cm. 경로차 3 cm인 점에서는?", o:["상쇄 간섭","보강 간섭","간섭 없음","정상파 배"], e:"3 cm = 1.5λ, 반파장의 홀수배."},
+    {q:"같은 조건에서 경로차 4 cm인 점에서는?", o:["보강 간섭","상쇄 간섭","간섭 없음","알 수 없다"], e:"4 cm = 2λ, 파장의 정수배."},
+    {q:"이중 슬릿에서 파장과 슬릿 간격을 모두 2배로 하면 무늬 간격은?", o:["변화 없음","2배","4배","1/2배"], e:"Δx = Lλ/d."},
+    {q:"이중 슬릿에 빨간빛 대신 파란빛을 쓰면 무늬 간격은?", o:["좁아진다","넓어진다","변화 없음","무늬가 사라진다"], e:"파란빛의 파장이 더 짧아요."},
+    {q:"일함수 2.5 eV인 금속에 4 eV 광자를 쪼이면 광전자의 최대 운동 에너지는?", o:["1.5 eV","6.5 eV","4 eV","2.5 eV"], e:"E_k = hf − W."},
+    {q:"진동수는 그대로 두고 빛의 세기만 2배로 하면 광전자의 최대 운동 에너지는?", o:["변화 없음","2배","4배","1/2배"], e:"세기는 광자 수를 늘려 광전자 수만 늘려요."},
+    {q:"문턱 진동수가 f₀인 금속에 3f₀인 빛을 쪼이면 최대 운동 에너지는?", o:["2hf₀","3hf₀","hf₀","4hf₀"], e:"h(3f₀) − hf₀."},
+    {q:"같은 속력의 전자와 양성자 중 물질파 파장이 긴 것은?", o:["전자","양성자","같다","알 수 없다"], e:"λ = h/(mv), 질량이 작은 전자가 길어요."},
+    {q:"운동 에너지가 같은 전자와 양성자 중 물질파 파장이 긴 것은?", o:["전자","양성자","같다","알 수 없다"], e:"p = √(2mK) 라서 가벼운 쪽 운동량이 작아요."},
+    {q:"전자를 가속하는 전압을 4배로 하면 물질파 파장은?", o:["1/2배","1/4배","2배","변화 없음"], e:"K = eV ∝ V, λ ∝ 1/√K."},
+    {q:"광자의 에너지가 2배가 되면 운동량은?", o:["2배","4배","√2배","변화 없음"], e:"p = E/c = h/λ."},
+    {q:"진동수 3×10⁹ Hz 전자기파의 파장은?", o:["0.1 m","1 m","10 m","0.01 m"], e:"λ = c/f = 3×10⁸ / 3×10⁹."},
+    {q:"밤에 소리가 더 멀리 들리는 이유는?", o:["지표 근처 공기가 차가워 소리가 아래로 굴절","밤에 소리가 빨라져서","공기가 없어져서","빛의 간섭 때문"], e:"소리는 따뜻한 공기에서 빨라요. 위쪽이 빠르면 아래로 휘어요."},
+    {q:"전자 이중 슬릿 실험에서 어느 슬릿을 지났는지 측정하면?", o:["간섭무늬가 사라진다","무늬가 더 선명해진다","변화 없다","무늬 간격이 2배"], e:"입자의 경로를 확정하면 파동성이 드러나지 않아요."}
+  ]
+};
+
+// ---------- 사칙연산 문제 생성 ----------
+const ri = (a,b) => a + Math.floor(Math.random()*(b-a+1));
+function mathQ(level){
+  let q, ans, e, trap = null;
+  const kind = ri(0, Math.min(5, 2 + level));
+  if (kind === 0){
+    const a = ri(13, 29 + level*10), b = ri(12, 19 + level*5);
+    q = `${a} × ${b} = ?`; ans = a*b;
+    e = `${a} × ${b} = ${a} × ${b - b%10} + ${a} × ${b%10} = ${a*(b-b%10)} + ${a*(b%10)} = ${ans}`;
+  } else if (kind === 1){
+    const d = ri(6, 17 + level*3), qt = ri(12, 39 + level*10), a = d*qt;
+    q = `${a} ÷ ${d} = ?`; ans = qt;
+    e = `${d} × ${qt} = ${a} 이므로 ${qt}`;
+  } else if (kind === 2){
+    const a = ri(10, 60), b = ri(3, 12), c = ri(3, 12), d = ri(5, 40);
+    q = `${a} + ${b} × ${c} − ${d} = ?`; ans = a + b*c - d; trap = (a+b)*c - d;
+    e = `곱셈 먼저: ${b} × ${c} = ${b*c}, 그다음 ${a} + ${b*c} − ${d} = ${ans}`;
+  } else if (kind === 3){
+    const d = ri(3, 9), c = ri(2, 9) * d, a = ri(20, 80), b = ri(3, 19);
+    q = `(${a} − ${b}) × ${c} ÷ ${d} = ?`; ans = (a-b)*c/d; trap = a - b*c/d;
+    e = `괄호 먼저 ${a - b}, ${c} ÷ ${d} = ${c/d}, ${a-b} × ${c/d} = ${ans}`;
+  } else if (kind === 4){
+    const a = ri(5, 30), b = ri(6, 15), c = ri(4, 12);
+    q = `${a} − ${b} × ${c} = ?`; ans = a - b*c; trap = (a-b)*c;
+    e = `${b} × ${c} = ${b*c}, ${a} − ${b*c} = ${ans}`;
+  } else {
+    const b = ri(4, 9), qt = ri(-15, -3), a = b*qt, c = ri(10, 40);
+    q = `${a} ÷ ${b} + ${c} × (−2) = ?`; ans = qt - 2*c; trap = qt + 2*c;
+    e = `${a} ÷ ${b} = ${qt}, ${c} × (−2) = ${-2*c}, 합 ${ans}`;
+  }
+  const opts = new Set([ans]);
+  if (trap !== null && trap !== ans && Number.isInteger(trap)) opts.add(trap);
+  const offs = [1,-1,2,-2,10,-10,ri(3,9),-ri(3,9), 20, -20];
+  while (opts.size < 4){ const o = ans + offs[ri(0, offs.length-1)]; if (o !== ans) opts.add(o); }
+  const arr = [...opts].slice(0,4).map(n => String(n).replace("-", "−"));
+  return {q, o:arr, e};
+}
+
+Object.assign(QB, {
+  c1: [
+    {q:"물(H₂O) 36 g은 몇 mol인가? (H = 1, O = 16)", o:["2 mol","1 mol","36 mol","0.5 mol"], e:"분자량 18, 36 ÷ 18."},
+    {q:"0 °C, 1기압에서 기체 1 mol의 부피는?", o:["22.4 L","1 L","24.5 L","11.2 L"], e:"25 °C, 1기압에서는 약 24.5 L예요."},
+    {q:"CO₂ 44 g 속 산소 원자 수는?", o:["1.2×10²⁴","6.0×10²³","3.0×10²³","2.4×10²⁴"], e:"CO₂ 1 mol 속 O 원자 2 mol = 2 × 6.02×10²³."},
+    {q:"2H₂ + O₂ → 2H₂O. H₂ 4 g이 모두 반응하면 생성되는 물의 질량은?", o:["36 g","18 g","4 g","32 g"], e:"H₂ 2 mol → H₂O 2 mol = 36 g."},
+    {q:"2H₂ + O₂ → 2H₂O. H₂ 4 mol과 O₂ 1 mol을 반응시키면 남는 것은?", o:["H₂ 2 mol","O₂ 1 mol","H₂ 1 mol","남는 것 없음"], e:"O₂ 1 mol은 H₂ 2 mol과 반응. O₂가 한계 반응물."},
+    {q:"C₃H₈ + bO₂ → 3CO₂ + 4H₂O 에서 b는?", o:["5","4","7","10"], e:"오른쪽 O 원자 6 + 4 = 10개 → O₂ 5개."},
+    {q:"메테인(CH₄) 16 g이 완전 연소하면 생성되는 CO₂의 질량은?", o:["44 g","16 g","22 g","88 g"], e:"CH₄ 1 mol → CO₂ 1 mol."},
+    {q:"메테인 1 mol을 완전 연소시키는 데 필요한 O₂는?", o:["2 mol","1 mol","3 mol","0.5 mol"], e:"CH₄ + 2O₂ → CO₂ + 2H₂O."},
+    {q:"NaOH 4 g을 녹여 수용액 500 mL를 만들었다. 몰 농도는? (NaOH = 40)", o:["0.2 M","0.1 M","2 M","8 M"], e:"0.1 mol ÷ 0.5 L."},
+    {q:"0.1 M 수용액 200 mL 속 용질의 양은?", o:["0.02 mol","0.2 mol","2 mol","0.05 mol"], e:"mol = M × L = 0.1 × 0.2."},
+    {q:"1 M 용액 100 mL에 물을 넣어 500 mL로 묽혔다. 몰 농도는?", o:["0.2 M","0.5 M","5 M","0.1 M"], e:"용질 0.1 mol은 그대로, 부피만 0.5 L."},
+    {q:"물 90 g에 설탕 10 g을 녹이면 퍼센트 농도는?", o:["10%","11.1%","9%","90%"], e:"용질 ÷ 용액 전체 = 10 ÷ 100."},
+    {q:"N₂ + 3H₂ → 2NH₃. 같은 온도·압력에서 N₂ 1 L가 모두 반응하면 NH₃는?", o:["2 L","1 L","4 L","3 L"], e:"기체 반응에서 부피비 = 계수비."},
+    {q:"일반적인 화학 반응 전후에 보존되지 않을 수 있는 것은?", o:["분자 수","원자 수","전체 질량","원자의 종류"], e:"원자는 재배열될 뿐이지만 분자 수는 달라질 수 있어요."},
+    {q:"산소 기체 32 g과 분자 수가 같은 수소 기체의 질량은?", o:["2 g","32 g","1 g","16 g"], e:"둘 다 1 mol."},
+    {q:"2Al + 3Cl₂ → 2AlCl₃. Al 2 mol, Cl₂ 2 mol이면 한계 반응물은?", o:["Cl₂","Al","둘 다","없음"], e:"Al 2 mol은 Cl₂ 3 mol이 필요한데 2 mol뿐이에요."},
+    {q:"암모니아(NH₃) 17 g 속 수소 원자의 양은?", o:["3 mol","1 mol","17 mol","6 mol"], e:"NH₃ 1 mol 속 H 3 mol."},
+    {q:"같은 질량의 SO₂와 O₂의 분자 수 비는? (S = 32)", o:["1 : 2","2 : 1","1 : 1","1 : 4"], e:"분자량 64 : 32 이니 mol 수는 반대로 1 : 2."},
+    {q:"같은 온도·압력에서 같은 부피 속 기체 분자 수가 같다는 법칙은?", o:["아보가드로 법칙","보일 법칙","질량 보존 법칙","일정 성분비 법칙"], e:"그래서 기체의 부피비가 몰수비가 돼요."},
+    {q:"탄소 원자 1개의 질량은 약? (아보가드로수 6×10²³)", o:["2×10⁻²³ g","12 g","6×10²³ g","1.2×10⁻²² g"], e:"12 g ÷ 6×10²³."}
+  ],
+  c2: [
+    {q:"¹⁶O 원자의 중성자 수는? (원자 번호 8)", o:["8","16","24","6"], e:"질량수 − 양성자 수."},
+    {q:"³⁵Cl⁻ 이온의 전자 수는? (원자 번호 17)", o:["18","17","35","16"], e:"음이온은 전자 1개를 더 얻었어요."},
+    {q:"동위 원소끼리 서로 다른 것은?", o:["중성자 수","양성자 수","전자 수","화학적 성질"], e:"양성자 수가 같아 같은 원소이고 화학적 성질도 거의 같아요."},
+    {q:"Cl의 평균 원자량 35.5, 동위 원소는 ³⁵Cl과 ³⁷Cl. ³⁵Cl의 존재 비율은?", o:["75%","50%","25%","90%"], e:"35x + 37(1 − x) = 35.5 → x = 0.75."},
+    {q:"2p 오비탈 전체에 들어갈 수 있는 최대 전자 수는?", o:["6","2","8","3"], e:"2p 오비탈 3개 × 2."},
+    {q:"바닥상태 질소(N) 원자의 홀전자 수는?", o:["3","1","2","5"], e:"1s² 2s² 2p³. 훈트 규칙으로 2p 오비탈 3개에 하나씩."},
+    {q:"주 양자수 n = 2인 오비탈의 개수는?", o:["4","2","8","3"], e:"2s 1개 + 2p 3개 = n²."},
+    {q:"다전자 원자에서 먼저 채워지는 오비탈은?", o:["4s","3d","둘이 동시에","4p"], e:"쌓음 원리: 4s가 3d보다 에너지가 낮아요."},
+    {q:"같은 주기에서 원자 번호가 커지면 원자 반지름은?", o:["작아진다","커진다","변하지 않는다","불규칙하다"], e:"유효 핵전하가 커져 전자를 더 세게 당겨요."},
+    {q:"제1 이온화 에너지가 더 큰 것은?", o:["N","O","같다","알 수 없다"], e:"O는 짝지은 2p 전자 사이 반발로 떼어내기 쉬워요. 2주기 예외."},
+    {q:"Na, Mg, Al 중 제2 이온화 에너지가 가장 큰 것은?", o:["Na","Mg","Al","같다"], e:"Na은 두 번째 전자를 안쪽 껍질에서 떼어내야 해요."},
+    {q:"O²⁻, F⁻, Na⁺, Mg²⁺ 중 반지름이 가장 큰 것은?", o:["O²⁻","F⁻","Na⁺","Mg²⁺"], e:"전자 수가 같으면 핵전하가 작을수록 커요."},
+    {q:"전기 음성도가 가장 큰 원소는?", o:["F","O","Cl","N"], e:"폴링 값 약 4.0."},
+    {q:"H₂O 분자의 모양은?", o:["굽은형","직선형","평면 삼각형","사면체형"], e:"비공유 전자쌍 2개 때문에 결합각 약 104.5°."},
+    {q:"CO₂는 극성 결합을 가지지만 분자는?", o:["무극성","극성","이온성","금속성"], e:"직선형이라 결합 쌍극자가 상쇄돼요."},
+    {q:"결합각 크기 비교로 옳은 것은?", o:["CH₄ > NH₃ > H₂O","H₂O > NH₃ > CH₄","모두 같다","NH₃ > CH₄ > H₂O"], e:"109.5° > 107° > 104.5°. 비공유 전자쌍이 많을수록 작아요."},
+    {q:"BF₃ 분자의 모양은?", o:["평면 삼각형","삼각뿔형","굽은형","사면체형"], e:"B 주위 전자쌍 3개, 비공유 전자쌍 없음. 결합각 120°."},
+    {q:"삼중 결합을 가진 분자는?", o:["N₂","O₂","H₂O","CH₄"], e:"O₂는 이중 결합."},
+    {q:"NaCl이 전기를 통하는 상태는?", o:["액체와 수용액","고체","모든 상태","통하지 않는다"], e:"이온이 자유롭게 움직일 수 있어야 해요."},
+    {q:"H₂O 분자 속 비공유 전자쌍 수는?", o:["2쌍","1쌍","0쌍","3쌍"], e:"산소의 원자가 전자 6개 중 4개가 비공유."},
+    {q:"금속이 잘 펴지고 늘어나는 이유는?", o:["자유 전자가 결합을 유지해서","이온이 고정돼 있어서","공유 결합이 강해서","분자 간 힘이 약해서"], e:"층이 밀려도 자유 전자가 계속 금속 양이온을 붙잡아 줘요."}
+  ],
+  c3: [
+    {q:"25 °C에서 pH 3인 용액의 [H₃O⁺]는?", o:["10⁻³ M","3 M","10³ M","10⁻¹¹ M"], e:"pH = −log[H₃O⁺]."},
+    {q:"pH 3 용액은 pH 5 용액보다 [H₃O⁺]가 몇 배?", o:["100배","2배","10배","1/100배"], e:"pH 1 차이마다 10배."},
+    {q:"25 °C에서 [OH⁻] = 10⁻⁴ M인 용액의 pH는?", o:["10","4","14","7"], e:"pOH 4, pH = 14 − 4."},
+    {q:"0.01 M HCl 수용액의 pH는? (25 °C)", o:["2","1","12","0.01"], e:"강산이라 모두 이온화, [H₃O⁺] = 10⁻²."},
+    {q:"0.1 M HCl 10 mL를 중화하는 데 필요한 0.1 M NaOH는?", o:["10 mL","20 mL","5 mL","1 mL"], e:"H⁺ mol = OH⁻ mol."},
+    {q:"0.1 M H₂SO₄ 10 mL를 중화하는 데 필요한 0.1 M NaOH는?", o:["20 mL","10 mL","5 mL","40 mL"], e:"H₂SO₄는 2가 산이라 H⁺가 2배."},
+    {q:"브뢴스테드-로리 산의 정의는?", o:["H⁺를 주는 물질","H⁺를 받는 물질","OH⁻를 내놓는 물질","전자를 주는 물질"], e:"염기는 H⁺를 받는 물질."},
+    {q:"NH₃ + H₂O ⇌ NH₄⁺ + OH⁻ 에서 H₂O의 역할은?", o:["산","염기","촉매","산화제"], e:"NH₃에게 H⁺를 줬어요."},
+    {q:"산과 염기로 모두 작용할 수 있는 양쪽성 물질은?", o:["H₂O","HCl","NaOH","Na⁺"], e:"HCl과는 염기로, NH₃와는 산으로 작용해요."},
+    {q:"HCl 수용액에 NaOH 수용액을 조금씩 넣을 때 개수가 일정한 이온은?", o:["Cl⁻","H⁺","Na⁺","OH⁻"], e:"H⁺는 줄고 Na⁺는 늘어요. Cl⁻는 구경꾼 이온."},
+    {q:"중화 반응의 알짜 이온 반응식은?", o:["H⁺ + OH⁻ → H₂O","Na⁺ + Cl⁻ → NaCl","H₂ + O₂ → H₂O","2H⁺ → H₂"], e:"구경꾼 이온을 뺀 식이에요."},
+    {q:"동적 평형 상태의 조건은?", o:["정반응 속도 = 역반응 속도","반응이 멈춤","반응물이 모두 사라짐","농도가 모두 같음"], e:"반응은 계속되지만 겉보기 변화가 없어요."},
+    {q:"25 °C에서 물의 이온화 상수 Kw는?", o:["1×10⁻¹⁴","1×10⁻⁷","7","14"], e:"[H₃O⁺][OH⁻] = 10⁻¹⁴."},
+    {q:"H₂O₂에서 산소의 산화수는?", o:["−1","−2","0","+1"], e:"H가 +1씩 2개, 전체 0이니 O 두 개가 −2를 나눠 가져요."},
+    {q:"KMnO₄에서 Mn의 산화수는?", o:["+7","+4","+2","−1"], e:"+1 + x + 4(−2) = 0."},
+    {q:"Fe₂O₃에서 Fe의 산화수는?", o:["+3","+2","+6","−3"], e:"2x + 3(−2) = 0."},
+    {q:"산화에 대한 설명으로 옳은 것은?", o:["전자를 잃고 산화수가 증가","전자를 얻고 산화수가 감소","산소를 잃음","수소를 얻음"], e:"환원은 그 반대예요."},
+    {q:"Zn + Cu²⁺ → Zn²⁺ + Cu 에서 산화제는?", o:["Cu²⁺","Zn","Zn²⁺","Cu"], e:"Cu²⁺가 전자를 받아 환원되면서 Zn을 산화시켜요."},
+    {q:"2Mg + O₂ → 2MgO 에서 환원제는?", o:["Mg","O₂","MgO","없다"], e:"Mg가 산화되며 O₂를 환원시켜요."},
+    {q:"광합성에서 CO₂ 속 탄소가 포도당의 탄소로 될 때 산화수 변화는?", o:["+4 → 0, 환원","0 → +4, 산화","+4 → +4","−4 → 0"], e:"C₆H₁₂O₆ 속 탄소의 평균 산화수는 0."},
+    {q:"질산 암모늄을 물에 녹이면 주변 온도는?", o:["내려간다 (흡열)","올라간다 (발열)","변하지 않는다","폭발한다"], e:"그래서 냉찜질 팩에 써요."}
+  ]
+});
+QB.c2.push(
+  {q:"3d 오비탈의 방위 양자수 l은?", o:["2","3","1","0"], e:"s = 0, p = 1, d = 2, f = 3. 주 양자수 3과 헷갈리지 마세요."},
+  {q:"주 양자수 n = 3인 껍질에 들어갈 수 있는 최대 전자 수는?", o:["18","8","9","32"], e:"2n² = 18. 3s, 3p, 3d 오비탈 9개 × 2."},
+  {q:"l = 2일 때 가능한 자기 양자수 mₗ 값의 개수는?", o:["5","3","2","7"], e:"−2, −1, 0, +1, +2. 그래서 d 오비탈이 5개."},
+  {q:"한 부껍질의 f 오비탈 개수는?", o:["7","5","3","14"], e:"l = 3 → 2l + 1 = 7개, 최대 전자 14개."},
+  {q:"방향성이 없는 공 모양 오비탈은?", o:["s","p","d","f"], e:"p 오비탈은 아령 모양으로 x, y, z 방향성이 있어요."},
+  {q:"크롬(Cr, 24)의 바닥상태 전자 배치는?", o:["[Ar] 3d⁵ 4s¹","[Ar] 3d⁴ 4s²","[Ar] 3d⁶","[Ar] 4s² 4p⁴"], e:"반만 채운 d⁵가 안정해서 예외가 생겨요."},
+  {q:"구리(Cu, 29)의 바닥상태 전자 배치는?", o:["[Ar] 3d¹⁰ 4s¹","[Ar] 3d⁹ 4s²","[Ar] 3d¹¹","[Ar] 4s² 4p⁹"], e:"완전히 채운 d¹⁰이 안정해서 예외."},
+  {q:"Fe³⁺ (Fe 원자 번호 26)의 전자 배치는?", o:["[Ar] 3d⁵","[Ar] 3d³ 4s²","[Ar] 3d⁶ 4s¹","[Ar] 4s² 3d⁴"], e:"양이온이 될 땐 4s 전자가 먼저 빠져요."},
+  {q:"Be 원자의 전자 배치 1s² 2s¹ 2p¹ 은?", o:["들뜬 상태","바닥상태","불가능한 배치","이온 상태"], e:"쌓음 원리에 어긋나지만 파울리 원리는 지켜서 가능한 들뜬 상태예요."},
+  {q:"한 오비탈에 스핀 방향이 같은 전자 2개가 들어간 배치는?", o:["불가능 (파울리 배타 원리 위반)","들뜬 상태","바닥상태","훈트 규칙만 위반한 들뜬 상태"], e:"한 오비탈의 두 전자는 스핀이 반대여야 해요."},
+  {q:"수소 원자에서 2s와 2p 오비탈의 에너지는?", o:["같다","2p가 높다","2s가 높다","비교할 수 없다"], e:"전자가 하나뿐이면 에너지가 주 양자수 n으로만 정해져요. 다전자 원자는 2p가 높아요."},
+  {q:"3주기 원소 중 바닥상태 홀전자 수가 3인 것은?", o:["P","S","Al","Cl"], e:"P: [Ne] 3s² 3p³."},
+  {q:"전자 배치 1s² 2s² 2p⁶ 3s² 3p⁴인 원소는?", o:["S","O","Ar","P"], e:"전자 16개 → 황."},
+  {q:"제1 이온화 에너지가 더 큰 것은?", o:["Mg","Al","같다","알 수 없다"], e:"Al은 에너지가 더 높은 3p 전자 하나를 떼어내면 돼서 오히려 작아요."},
+  {q:"순차 이온화 에너지가 E₂ → E₃에서 급격히 커지는 원소는 몇 족?", o:["2족","1족","3족","17족"], e:"원자가 전자 2개를 떼고 나면 안쪽 껍질 전자라서 급증해요."},
+  {q:"같은 주기에서 Na과 Mg 중 원자가 전자가 느끼는 유효 핵전하가 큰 것은?", o:["Mg","Na","같다","알 수 없다"], e:"양성자는 1개 늘지만 같은 껍질 전자의 가림 효과는 작아요."},
+  {q:"금속 원자가 양이온이 되면 반지름은?", o:["작아진다","커진다","변하지 않는다","2배가 된다"], e:"바깥 껍질이 통째로 없어지는 경우가 많아요. 비금속 음이온은 커져요."},
+  {q:"붕소의 평균 원자량 10.8, 동위 원소 ¹⁰B와 ¹¹B. ¹⁰B의 존재 비율은?", o:["20%","80%","50%","10%"], e:"10x + 11(1 − x) = 10.8 → x = 0.2."},
+  {q:"Mg²⁺ (원자 번호 12)의 전자 배치는?", o:["1s² 2s² 2p⁶","1s² 2s² 2p⁶ 3s²","1s² 2s² 2p⁴","1s² 2s² 2p⁶ 3s¹"], e:"3s 전자 2개가 빠져 Ne과 같은 배치."},
+  {q:"원자 번호 20번 원소의 원자가 전자 수와 주기는?", o:["2개, 4주기","2개, 3주기","8개, 4주기","4개, 2주기"], e:"Ca: [Ar] 4s²."},
+  {q:"2p 오비탈 3개에 전자가 먼저 하나씩 같은 스핀으로 들어가는 규칙은?", o:["훈트 규칙","파울리 배타 원리","쌓음 원리","옥텟 규칙"], e:"전자 사이 반발이 줄어 에너지가 낮아져요."}
+);
+const TOPICS_C = [["c1","몰과 반응식"],["c2","원자와 결합"],["c3","산·염기와 산화환원"]];
+const TOPICS = [["mech","역학과 에너지"],["em","물질과 전자기장"],["modern","파동과 정보통신"]];
+const topicAt = d => d < 900 ? 0 : d < 1900 ? 1 : 2;
+
+// ---------- 상수 ----------
+const LANE = 1.2, ZP = 4.2, CAMH = 3.4, SPAWNZ = 62, GRAV = 20, JUMPV = 7;
+const $ = id => document.getElementById(id);
+const cv = $("cv"), ctx = cv.getContext("2d"), wrap = $("wrap");
+
+let C = {};
+function readColors(){
+  const cs = getComputedStyle(document.documentElement);
+  for (const k of ["paper","grid","grid2","ink","ink-soft","marker","pen","block","ok","ground"])
+    C[k] = cs.getPropertyValue("--"+k).trim();
+}
+readColors();
+matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", readColors);
+
+let W=0,H=0,dpr=1,focal=300,horizon=200,cx=0;
+function resize(){
+  const r = wrap.getBoundingClientRect();
+  dpr = Math.min(2, window.devicePixelRatio||1); W = r.width; H = r.height;
+  cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr);
+  focal = Math.min(0.98*W, (0.6*H)*ZP/CAMH);
+  horizon = H*0.9 - CAMH*focal/ZP;
+  cx = W/2;
+}
+addEventListener("resize", resize);
+
+// ---------- 상태 ----------
+let state = "panel";
+let mode = "phys";
+const mathLv = () => Math.min(3, Math.floor(G.traveled/400));
+let G; // 게임 상태
+const used = {};
+const TP = () => mode === "chem" ? TOPICS_C : TOPICS;
+
+function newGame(){
+  G = {
+    traveled:0, speed:14, score:0, hearts:3, correct:0, tries:0, coins:0,
+    lane:1, px:0, py:0, vy:0, slideT:0, invul:0, shake:0,
+    objs:[], nextSpawn:20, nextQuiz: mode === "chem" ? 50 : 70, quiz:null,
+    safe:1, freeAt:[0,0,0], reserved:[0,0,0], camX:0, t:0
+  };
+  $("qcard").hidden = true; $("toast").hidden = true;
+  updateHUD();
+}
+
+function updateHUD(){
+  $("dist").textContent = `${Math.floor(G.traveled)} m`;
+  $("topic").textContent = mode === "math" ? `수학 맵, 레벨 ${mathLv()+1}` : `${TP()[topicAt(G.traveled)][1]} 구간`;
+  $("score").textContent = `${G.score}점`;
+  const bb = getBest();
+  $("best").textContent = `최고 ${Math.max(bb.score, G.score)}점`;
+  $("hearts").textContent = "♥".repeat(Math.max(0,G.hearts)) + "♡".repeat(Math.max(0,3-G.hearts));
+}
+
+// ---------- 입력 ----------
+// ---------- 소리 (Web Audio 합성) ----------
+const SFX = (() => {
+  let ac = null, master = null, on = true, bgmOn = false, timer = null, nextT = 0, stepN = 0;
+  try { on = localStorage.getItem("rail-sound") !== "off"; } catch(e){}
+  function init(){
+    if (!ac){
+      const A = window.AudioContext || window.webkitAudioContext; if (!A) return;
+      ac = new A(); master = ac.createGain(); master.gain.value = on ? 0.5 : 0; master.connect(ac.destination);
+    }
+    if (ac.state === "suspended") ac.resume();
+  }
+  function tone(f, dur, type = "square", vol = 0.15, slideTo = null, delay = 0){
+    if (!ac || !on) return;
+    const t = ac.currentTime + delay;
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.03);
+  }
+  function toneAt(t, f, dur, type, vol){
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t);
+    g.gain.setValueAtTime(0.0008, t); g.gain.linearRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.03);
+  }
+  function noise(dur, vol = 0.3, freq = 1000, type = "highpass"){
+    if (!ac || !on) return;
+    const len = Math.floor(ac.sampleRate * dur), buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random()*2 - 1) * (1 - i/len);
+    const src = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+    src.buffer = buf; f.type = type; f.frequency.value = freq; g.gain.value = vol;
+    src.connect(f); f.connect(g); g.connect(master); src.start();
+  }
+  // 배경음: 16스텝 루프
+  const BASS = [110,0,110,165, 131,0,131,196, 98,0,98,147, 123,0,123,185];
+  const LEAD = [440,523,659,523, 523,659,784,659, 392,494,587,494, 494,587,740,587];
+  function schedule(){
+    if (!ac || !bgmOn) return;
+    const spb = 0.15;
+    while (nextT < ac.currentTime + 0.25){
+      if (on){
+        const b = BASS[stepN % 16]; if (b) toneAt(nextT, b, 0.14, "triangle", 0.12);
+        if (stepN % 2 === 0) toneAt(nextT, LEAD[stepN % 16], 0.12, "sine", 0.035);
+        if (stepN % 4 === 2) { /* 하이햇 */
+          const len = Math.floor(ac.sampleRate*0.03), buf = ac.createBuffer(1, len, ac.sampleRate), dd = buf.getChannelData(0);
+          for (let i=0;i<len;i++) dd[i] = (Math.random()*2-1)*(1-i/len);
+          const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+          s.buffer = buf; f.type = "highpass"; f.frequency.value = 6000; g.gain.value = 0.05;
+          s.connect(f); f.connect(g); g.connect(master); s.start(nextT);
+        }
+      }
+      nextT += spb; stepN++;
+    }
+  }
+  return {
+    init,
+    get on(){ return on; },
+    toggle(){
+      on = !on; try { localStorage.setItem("rail-sound", on ? "on" : "off"); } catch(e){}
+      if (master) master.gain.value = on ? 0.5 : 0;
+      return on;
+    },
+    bgmStart(){ init(); if (!ac) return; bgmOn = true; nextT = ac.currentTime + 0.05; stepN = 0; clearInterval(timer); timer = setInterval(schedule, 60); },
+    bgmStop(){ bgmOn = false; clearInterval(timer); },
+    jump(){ tone(300, 0.18, "square", 0.1, 750); },
+    slide(){ noise(0.22, 0.18, 1800); },
+    move(){ tone(520, 0.07, "triangle", 0.1, 700); },
+    coin(){ tone(988, 0.07, "square", 0.06); tone(1319, 0.12, "square", 0.06, null, 0.06); },
+    crash(){ noise(0.4, 0.45, 400, "lowpass"); tone(140, 0.35, "sawtooth", 0.16, 45); },
+    quiz(){ tone(660, 0.1, "triangle", 0.16); tone(880, 0.18, "triangle", 0.16, null, 0.1); },
+    right(){ [523,659,784,1047].forEach((f,i) => tone(f, 0.15, "square", 0.08, null, i*0.08)); },
+    wrong(){ tone(233, 0.25, "sawtooth", 0.13, 117); tone(185, 0.35, "sawtooth", 0.11, 92, 0.18); },
+    over(){ [392,330,262,196].forEach((f,i) => tone(f, 0.3, "triangle", 0.16, null, i*0.2)); }
+  };
+})();
+
+function move(d){ if (state!=="play") return; const nl = Math.max(0, Math.min(2, G.lane+d)); if (nl !== G.lane) SFX.move(); G.lane = nl; }
+function jump(){ if (state!=="play") return; if (G.py <= 0.001){ G.vy = JUMPV; G.slideT = 0; SFX.jump(); } }
+function slide(){ if (state!=="play") return; SFX.slide(); G.slideT = 0.75; if (G.py > 0) G.vy = Math.min(G.vy, -12); }
+addEventListener("keydown", e => {
+  const k = e.key;
+  if (["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"," "].includes(k) && state==="play") e.preventDefault();
+  if (e.repeat) return;
+  if (k==="ArrowLeft"||k==="a"||k==="A") move(-1);
+  else if (k==="ArrowRight"||k==="d"||k==="D") move(1);
+  else if (k==="ArrowUp"||k===" "||k==="w"||k==="W") jump();
+  else if (k==="ArrowDown"||k==="s"||k==="S") slide();
+});
+let sw = null;
+cv.addEventListener("pointerdown", e => { sw = {x:e.clientX, y:e.clientY, done:false}; });
+cv.addEventListener("pointermove", e => {
+  if (!sw || sw.done) return;
+  const dx = e.clientX-sw.x, dy = e.clientY-sw.y;
+  if (Math.hypot(dx,dy) < 26) return;
+  sw.done = true;
+  if (Math.abs(dx) > Math.abs(dy)) move(dx>0?1:-1); else if (dy<0) jump(); else slide();
+});
+const endSw = () => { sw = null; };
+cv.addEventListener("pointerup", endSw); cv.addEventListener("pointercancel", endSw);
+
+// ---------- 생성 ----------
+const rnd = (a,b) => a + Math.random()*(b-a);
+const pick = a => a[Math.floor(Math.random()*a.length)];
+const laneX = l => (l-1)*LANE;
+
+function spawnRow(sd){
+  const z = SPAWNZ - (G.traveled - sd);
+  if (Math.random() < 0.35){
+    const cand = [0,1,2].filter(l => l!==G.safe && G.freeAt[l] <= sd);
+    if (cand.length){ G.reserved[G.safe] = sd + 16; G.safe = pick(cand); }
+  }
+  const trainP = Math.min(0.75, 0.45 + G.traveled/6000);
+  for (let l=0; l<3; l++){
+    const free = G.freeAt[l] <= sd;
+    if (!free) continue;
+    if (l !== G.safe && G.reserved[l] <= sd && Math.random() < trainP){
+      const len = rnd(6,15);
+      G.objs.push({type:"train", lane:l, z, len});
+      G.freeAt[l] = sd + len + 5;
+    } else {
+      const r = Math.random();
+      if (r < 0.22){ G.objs.push({type:"low", lane:l, z, len:0.3}); G.freeAt[l] = sd + 4; }
+      else if (r < 0.40){ G.objs.push({type:"high", lane:l, z, len:0.3}); G.freeAt[l] = sd + 4; }
+      else if (r < 0.62){ for (let i=0;i<5;i++) G.objs.push({type:"coin", lane:l, z:z+i*1.6, len:0.2, y:0.5}); }
+    }
+  }
+}
+
+function pickQ(pool){
+  const list = QB[pool], u = used[pool] || (used[pool] = new Set());
+  if (u.size >= list.length) u.clear();
+  const avail = list.map((_,i)=>i).filter(i=>!u.has(i));
+  const idx = pick(avail); u.add(idx); return list[idx];
+}
+
+function startQuiz(){
+  SFX.quiz();
+  const isMath = mode === "math";
+  const ti = topicAt(G.traveled);
+  const q = isMath ? mathQ(mathLv()) : pickQ(TP()[ti][0]);
+  const tName = isMath ? "사칙연산" : TP()[ti][1];
+  const wrongs = [1,2,3].sort(()=>Math.random()-0.5).slice(0,2);
+  const order = [0, ...wrongs].sort(()=>Math.random()-0.5);
+  G.quiz = {q, order, correctLane: order.indexOf(0), topic:tName};
+  const gz = mode === "chem" ? SPAWNZ + 15 : SPAWNZ + 30;
+  G.objs = G.objs.filter(o => o.z + o.len < gz - 10);
+  G.objs.push({type:"gate", lane:1, z:gz, len:0.3});
+  $("qMeta").textContent = `${tName} 문제. 정답 글자가 적힌 레일로 달리세요.`;
+  $("qText").textContent = q.q;
+  const box = $("qOpts"); box.innerHTML = "";
+  const letters = ["A","B","C"], laneName = ["왼쪽","가운데","오른쪽"];
+  order.forEach((oi,i) => {
+    const row = document.createElement("div"); row.className = "qo";
+    const b = document.createElement("b"); b.textContent = letters[i];
+    const t = document.createElement("span"); t.textContent = q.o[oi];
+    const ln = document.createElement("span"); ln.className = "lane"; ln.textContent = laneName[i];
+    row.append(b,t,ln); box.append(row);
+  });
+  $("toast").hidden = true; $("qcard").hidden = false;
+}
+
+let toastTimer = 0;
+function showToast(ok, title, exp){
+  $("qcard").hidden = true;
+  $("toastTitle").textContent = title; $("toastTitle").style.color = ok ? C.ok : C.pen;
+  $("toastExp").textContent = exp;
+  $("toast").hidden = false; toastTimer = 4.2;
+}
+
+// ---------- 게임 스텝 ----------
+function hit(){
+  if (G.invul > 0) return;
+  G.hearts--; G.invul = 1.6; G.shake = 0.35; SFX.crash(); updateHUD();
+  if (G.hearts <= 0) gameOver();
+}
+
+function step(dt){
+  G.t += dt;
+  const sp = G.quiz ? Math.min(G.speed, 8) : G.speed;
+  G.traveled += sp*dt;
+  G.speed = Math.min(30, 14 + G.traveled*0.005);
+  for (const o of G.objs) o.z -= sp*dt;
+
+  // 플레이어
+  const tx = laneX(G.lane);
+  G.px += (tx - G.px) * Math.min(1, dt*14);
+  if (G.py > 0 || G.vy > 0){ G.vy -= GRAV*dt; G.py += G.vy*dt; if (G.py <= 0){ G.py = 0; G.vy = 0; } }
+  if (G.slideT > 0) G.slideT -= dt;
+  if (G.invul > 0) G.invul -= dt;
+  if (G.shake > 0) G.shake -= dt;
+  if (toastTimer > 0){ toastTimer -= dt; if (toastTimer <= 0) $("toast").hidden = true; }
+  G.camX += (G.px*0.55 - G.camX) * Math.min(1, dt*8);
+
+  // 생성
+  if (!G.quiz){
+    while (G.traveled >= G.nextSpawn){ spawnRow(G.nextSpawn); G.nextSpawn += rnd(11,17) * (G.speed/16); }
+    if (G.traveled >= G.nextQuiz) startQuiz();
+  }
+
+  // 충돌
+  const sliding = G.slideT > 0 && G.py <= 0.001;
+  const ph = sliding ? 0.45 : 1.0;
+  const pz0 = ZP-0.3, pz1 = ZP+0.3;
+  for (const o of G.objs){
+    if (o.dead) continue;
+    if (o.type === "gate"){
+      if (o.z < ZP){
+        o.dead = true;
+        const lane = Math.round(G.px/LANE)+1;
+        const q = G.quiz; G.tries++;
+        if (lane === q.correctLane){
+          G.correct++; G.score += 300; SFX.right();
+          showToast(true, "정답! +300", q.q.e);
+        } else {
+          G.hearts--; G.shake = 0.35; G.invul = Math.max(G.invul, 1.0); SFX.wrong();
+          showToast(false, `오답. 정답은 "${q.q.o[0]}"`, q.q.e);
+          if (G.hearts <= 0){ G.quiz = null; updateHUD(); gameOver(); return; }
+        }
+        G.quiz = null;
+        G.nextSpawn = G.traveled - 26;
+        G.nextQuiz = G.traveled + (mode === "chem" ? rnd(60,85) : rnd(100,140));
+        G.freeAt = [0,0,0]; G.reserved = [0,0,0];
+        updateHUD();
+      }
+      continue;
+    }
+    if (o.z > pz1 || o.z + o.len < pz0) continue;
+    if (Math.abs(G.px - laneX(o.lane)) > 0.72) continue;
+    if (o.type === "coin"){
+      if (G.py < 1.0){ o.dead = true; G.score += 10; G.coins++; SFX.coin(); }
+      continue;
+    }
+    let y0, y1;
+    if (o.type === "train"){ y0 = 0; y1 = 1.5; }
+    else if (o.type === "low"){ y0 = 0; y1 = 0.55; }
+    else { y0 = 0.75; y1 = 1.35; }
+    if (G.py < y1 && G.py + ph > y0){ hit(); if (state !== "play") return; }
+  }
+  G.objs = G.objs.filter(o => !o.dead && o.z + o.len > 0.5);
+
+  if (Math.floor(G.traveled/10) !== Math.floor((G.traveled - sp*dt)/10)){ G.score += 1; }
+  updateHUD();
+}
+
+// ---------- 그리기 ----------
+function P(x,y,z){ const s = focal/z; return [cx + (x - G.camX)*s, horizon + (CAMH - y)*s]; }
+function poly(pts, fill, stroke){
+  ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]);
+  for (let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]);
+  ctx.closePath();
+  if (fill){ ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.stroke(); }
+}
+function box(x, w, y0, y1, z, len, front, top, side){
+  const zn = Math.max(z, 0.7), zf = z + len;
+  if (zf <= 0.7) return null;
+  const a = x - w/2, b = x + w/2;
+  const nLB=P(a,y0,zn), nRB=P(b,y0,zn), nLT=P(a,y1,zn), nRT=P(b,y1,zn);
+  const fLB=P(a,y0,zf), fRB=P(b,y0,zf), fLT=P(a,y1,zf), fRT=P(b,y1,zf);
+  if (a > G.camX) poly([nLB,fLB,fLT,nLT], side, C.ink);
+  if (b < G.camX) poly([nRB,fRB,fRT,nRT], side, C.ink);
+  if (y1 < CAMH) poly([nLT,nRT,fRT,fLT], top, C.ink);
+  if (y0 > CAMH) poly([nLB,nRB,fRB,fLB], top, C.ink);
+  if (z >= 0.7) poly([nLB,nRB,nRT,nLT], front, C.ink);
+  return {nLB,nRB,nLT,nRT, zn};
+}
+
+function drawTrain(o){
+  const x = laneX(o.lane);
+  const r = box(x, 1.02, 0, 1.5, o.z, o.len, C.marker, C.grid, C.grid2);
+  if (!r || o.z < 0.7) return;
+  const s = focal/o.z;
+  // 앞 유리창과 번호
+  const wx = cx + (x - 0.36 - G.camX)*s, wy = horizon + (CAMH - 1.28)*s;
+  ctx.fillStyle = C.ink; ctx.fillRect(wx, wy, 0.72*s, 0.3*s);
+  ctx.fillStyle = C.pen;
+  ctx.beginPath(); ctx.arc(cx+(x-0.3-G.camX)*s, horizon+(CAMH-0.35)*s, 0.08*s, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx+(x+0.3-G.camX)*s, horizon+(CAMH-0.35)*s, 0.08*s, 0, 7); ctx.fill();
+  ctx.fillStyle = "#1F3A5F"; ctx.font = `${Math.max(8,0.22*s)}px "Jua", sans-serif`;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText(mode === "math" ? "×÷" : mode === "chem" ? "H₂O" : "F=ma", cx+(x-G.camX)*s, horizon+(CAMH-0.72)*s);
+}
+function drawLow(o){
+  const x = laneX(o.lane);
+  box(x, 1.0, 0, 0.55, o.z, o.len, C.pen, C.block, C.block);
+  if (o.z < 0.7) return;
+  const s = focal/o.z;
+  ctx.strokeStyle = C.paper; ctx.lineWidth = Math.max(1, 0.06*s);
+  ctx.beginPath();
+  for (let i=-2;i<=2;i++){ const bx = cx+(x+i*0.2-G.camX)*s; ctx.moveTo(bx-0.08*s, horizon+(CAMH-0.1)*s); ctx.lineTo(bx+0.08*s, horizon+(CAMH-0.45)*s); }
+  ctx.stroke();
+}
+function drawHigh(o){
+  const x = laneX(o.lane);
+  box(x-0.5, 0.08, 0, 1.35, o.z, 0.08, C.ink, C.ink, C.ink);
+  box(x+0.5, 0.08, 0, 1.35, o.z, 0.08, C.ink, C.ink, C.ink);
+  box(x, 1.08, 0.75, 1.35, o.z, o.len, C.pen, C.block, C.block);
+  if (o.z < 0.7) return;
+  const s = focal/o.z;
+  ctx.fillStyle = C.paper; ctx.font = `${Math.max(8,0.3*s)}px "Jua", sans-serif`;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText("↓", cx+(x-G.camX)*s, horizon+(CAMH-1.05)*s);
+}
+function drawCoin(o){
+  if (o.z < 0.8) return;
+  const [sx,sy] = P(laneX(o.lane), 0.5 + Math.sin(G.t*5 + o.z)*0.05, o.z);
+  const s = focal/o.z, r = 0.16*s;
+  ctx.fillStyle = C.marker; ctx.strokeStyle = C.ink; ctx.lineWidth = Math.max(1, 0.03*s);
+  ctx.beginPath(); ctx.arc(sx, sy, r, 0, 7); ctx.fill(); ctx.stroke();
+}
+function drawGate(o){
+  if (o.z < 0.7) return;
+  const s = focal/o.z;
+  const letters = ["A","B","C"];
+  for (let l=0;l<3;l++){
+    const x = laneX(l);
+    box(x-0.56, 0.06, 0, 2.2, o.z, 0.06, C.ink, C.ink, C.ink);
+    box(x+0.56, 0.06, 0, 2.2, o.z, 0.06, C.ink, C.ink, C.ink);
+    const [x0,y0] = P(x-0.5, 2.2, o.z), [x1,y1] = P(x+0.5, 1.65, o.z);
+    ctx.fillStyle = C.marker; ctx.fillRect(x0,y0,x1-x0,y1-y0);
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.strokeRect(x0,y0,x1-x0,y1-y0);
+    ctx.fillStyle = "#1F3A5F"; ctx.font = `${Math.max(10,0.46*s)}px "Jua", sans-serif`;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(letters[l], (x0+x1)/2, (y0+y1)/2 + 1);
+    // 바닥 표시
+    const g0 = P(x-0.5,0,o.z), g1 = P(x+0.5,0,o.z), g2 = P(x+0.5,0,o.z+1.2), g3 = P(x-0.5,0,o.z+1.2);
+    ctx.globalAlpha = 0.45; poly([g0,g1,g2,g3], C.marker, null); ctx.globalAlpha = 1;
+  }
+}
+// ---------- 스킨 ----------
+const SKINS = [
+  {id:"particle", name:"입자", need:0},
+  {id:"atom", name:"원자", need:0},
+  {id:"drop", name:"물방울", need:600},
+  {id:"melon", name:"수박", need:1500},
+  {id:"planet", name:"고리 행성", need:3000},
+  {id:"sun", name:"항성", need:5000},
+  {id:"hole", name:"블랙홀", need:8000}
+];
+let skin = "particle";
+try { skin = localStorage.getItem("rail-skin") || "particle"; } catch(e){}
+const bestAll = () => Math.max(...["phys","chem","math"].map(m => getBest(m).score));
+
+function drawSkin(c, id, x, y, rx, ry, t){
+  const r = Math.min(rx, ry);
+  c.save(); c.lineCap = "round";
+  const body = (fill) => { c.fillStyle = fill; c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, 7); c.fill(); };
+  const shine = () => { c.fillStyle = "rgba(255,255,255,.75)"; c.beginPath(); c.arc(x - rx*0.35, y - ry*0.4, r*0.17, 0, 7); c.fill(); };
+  if (id === "atom"){
+    c.strokeStyle = C.ink; c.lineWidth = Math.max(1.2, r*0.09);
+    for (let i=0;i<3;i++){
+      const a = t*1.5 + i*Math.PI/3;
+      c.beginPath(); c.ellipse(x, y, rx*1.05, ry*0.38, a, 0, 7); c.stroke();
+      const e = t*6 + i*2.1;
+      const ex = x + Math.cos(e)*rx*1.05*Math.cos(a) - Math.sin(e)*ry*0.38*Math.sin(a);
+      const ey = y + Math.cos(e)*rx*1.05*Math.sin(a) + Math.sin(e)*ry*0.38*Math.cos(a);
+      c.fillStyle = C.marker; c.beginPath(); c.arc(ex, ey, r*0.14, 0, 7); c.fill(); c.stroke();
+    }
+    c.fillStyle = C.pen; c.beginPath(); c.arc(x, y, r*0.3, 0, 7); c.fill();
+  } else if (id === "drop"){
+    c.fillStyle = "#4AA3DF";
+    c.beginPath(); c.moveTo(x, y - ry*1.35);
+    c.bezierCurveTo(x + rx*0.9, y - ry*0.5, x + rx, y + ry*0.2, x, y + ry);
+    c.bezierCurveTo(x - rx, y + ry*0.2, x - rx*0.9, y - ry*0.5, x, y - ry*1.35);
+    c.fill(); c.strokeStyle = "#1F5E8C"; c.lineWidth = Math.max(1, r*0.07); c.stroke();
+    shine();
+  } else if (id === "melon"){
+    body("#3E9B4F");
+    c.save(); c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, 7); c.clip();
+    c.strokeStyle = "#1E5A2A"; c.lineWidth = r*0.18;
+    for (let i=-3;i<=3;i++){
+      const off = ((i*0.5 + t*2) % 3.5) - 1.75;
+      c.beginPath(); c.moveTo(x + off*rx, y - ry); c.quadraticCurveTo(x + off*rx*0.6, y, x + off*rx, y + ry); c.stroke();
+    }
+    c.restore(); shine();
+  } else if (id === "planet"){
+    c.strokeStyle = "#C79A4A"; c.lineWidth = r*0.16;
+    c.beginPath(); c.ellipse(x, y, rx*1.55, ry*0.4, -0.35, Math.PI, 2*Math.PI); c.stroke();
+    body("#3D7BC4");
+    c.save(); c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, 7); c.clip();
+    c.fillStyle = "#6FBF73";
+    for (let i=0;i<3;i++){
+      const px = x + (((t*0.6 + i*0.8) % 2.4) - 1.2)*rx*1.6;
+      c.beginPath(); c.ellipse(px, y + (i-1)*ry*0.45, rx*0.35, ry*0.2, 0.4, 0, 7); c.fill();
+    }
+    c.restore();
+    c.beginPath(); c.ellipse(x, y, rx*1.55, ry*0.4, -0.35, 0, Math.PI); c.stroke();
+    shine();
+  } else if (id === "sun"){
+    c.strokeStyle = "#F29B30"; c.lineWidth = Math.max(1.5, r*0.12);
+    for (let i=0;i<10;i++){
+      const a = t*1.2 + i*Math.PI/5, l = (i%2 ? 1.35 : 1.55);
+      c.beginPath(); c.moveTo(x + Math.cos(a)*rx*1.1, y + Math.sin(a)*ry*1.1); c.lineTo(x + Math.cos(a)*rx*l, y + Math.sin(a)*ry*l); c.stroke();
+    }
+    const g = c.createRadialGradient(x - rx*0.2, y - ry*0.2, r*0.1, x, y, r);
+    g.addColorStop(0, "#FFF3B0"); g.addColorStop(1, "#F5B829");
+    body(g);
+  } else if (id === "hole"){
+    const g = c.createRadialGradient(x, y, r*0.6, x, y, r*1.6);
+    g.addColorStop(0, "rgba(255,150,60,.9)"); g.addColorStop(1, "rgba(255,150,60,0)");
+    c.fillStyle = g; c.beginPath(); c.ellipse(x, y, rx*1.6, ry*1.6, 0, 0, 7); c.fill();
+    c.strokeStyle = "#FFB45A"; c.lineWidth = r*0.14;
+    c.beginPath(); c.ellipse(x, y, rx*1.4, ry*0.35, Math.sin(t)*0.15, 0, 7); c.stroke();
+    body("#05070C");
+  } else {
+    body(C.ink);
+    const a = t*10;
+    c.strokeStyle = C.paper; c.lineWidth = Math.max(1.5, r*0.14);
+    c.beginPath(); c.moveTo(x - rx*0.7, y + Math.sin(a)*ry*0.5); c.lineTo(x + rx*0.7, y - Math.sin(a)*ry*0.5); c.stroke();
+    c.fillStyle = C.paper; c.beginPath(); c.arc(x - rx*0.35, y - ry*0.4, r*0.17, 0, 7); c.fill();
+  }
+  c.restore();
+}
+
+function skinPicker(){
+  const wrapEl = document.createElement("div");
+  const title = document.createElement("div"); title.className = "meta"; title.textContent = "스킨 (최고 점수로 잠금 해제)";
+  const row = document.createElement("div"); row.className = "skins";
+  const best = bestAll();
+  if (!SKINS.some(k => k.id === skin && best >= k.need)) skin = "particle";
+  SKINS.forEach(k => {
+    const b = document.createElement("button"); b.className = "skin" + (k.id === skin ? " sel" : "");
+    const open = best >= k.need;
+    b.disabled = !open;
+    const cvs = document.createElement("canvas"); cvs.width = 88; cvs.height = 88; cvs.style.width = cvs.style.height = "44px";
+    const c2 = cvs.getContext("2d"); c2.scale(2,2); drawSkin(c2, k.id, 22, 23, 12, 12, 0.6);
+    const lb = document.createElement("span"); lb.textContent = open ? k.name : `${k.need}점`;
+    b.append(cvs, lb);
+    b.onclick = () => {
+      skin = k.id; try { localStorage.setItem("rail-skin", skin); } catch(e){}
+      row.querySelectorAll(".skin").forEach(x => x.classList.remove("sel")); b.classList.add("sel");
+    };
+    row.append(b);
+  });
+  wrapEl.append(title, row);
+  return wrapEl;
+}
+
+function drawPlayer(){
+  if (G.invul > 0 && Math.floor(G.invul*10)%2) return;
+  const sliding = G.slideT > 0 && G.py <= 0.001;
+  const s = focal/ZP;
+  const [gx, gy] = P(G.px, 0, ZP);
+  ctx.fillStyle = "rgba(31,58,95,.25)";
+  ctx.beginPath(); ctx.ellipse(gx, gy, 0.38*s/(1+G.py*0.4), 0.1*s, 0, 0, 7); ctx.fill();
+  const rx = 0.36*s, ry = sliding ? 0.2*s : 0.36*s;
+  const [bx, by] = P(G.px, G.py + (sliding?0.2:0.36), ZP);
+  drawSkin(ctx, skin, bx, by, rx*(sliding?1.2:1), ry, G.t);
+  // 점프 중 속도 벡터
+  if (Math.abs(G.vy) > 0.5){
+    const len = Math.min(0.9, Math.abs(G.vy)*0.13)*s * Math.sign(G.vy);
+    const x = bx + rx + 10, y0 = by, y1 = by - len;
+    ctx.strokeStyle = ctx.fillStyle = C.pen; ctx.lineWidth = 2.5; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(x,y0); ctx.lineTo(x,y1); ctx.stroke();
+    const d = Math.sign(len);
+    ctx.beginPath(); ctx.moveTo(x, y1 - d*2); ctx.lineTo(x-6, y1 + d*8); ctx.lineTo(x+6, y1 + d*8); ctx.closePath(); ctx.fill();
+    ctx.font = 'italic 14px "Jua", serif'; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    ctx.fillText("v", x + 8, (y0+y1)/2);
+  }
+}
+
+function draw(){
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  if (G && G.shake > 0) ctx.translate((Math.random()-0.5)*10, (Math.random()-0.5)*6);
+  // 하늘 (모눈종이)
+  ctx.fillStyle = C.paper; ctx.fillRect(-10,-10,W+20,H+20);
+  const ox = G ? (G.traveled*3) % 24 : 0;
+  ctx.strokeStyle = C.grid; ctx.lineWidth = 1; ctx.beginPath();
+  for (let x = -ox; x < W; x += 24){ ctx.moveTo(x,0); ctx.lineTo(x,horizon); }
+  for (let y = horizon; y > 0; y -= 24){ ctx.moveTo(0,y); ctx.lineTo(W,y); }
+  ctx.stroke();
+  // 땅
+  ctx.fillStyle = C.ground; ctx.fillRect(-10, horizon, W+20, H-horizon+10);
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0,horizon); ctx.lineTo(W,horizon); ctx.stroke();
+  if (!G) return;
+
+  // 침목
+  const ph = G.traveled % 1.4;
+  ctx.strokeStyle = C.grid2;
+  for (let z = 1.4 - ph; z < 80; z += 1.4){
+    if (z < 0.8) continue;
+    const [a,y] = P(-1.85, 0, z), [b] = P(1.85, 0, z);
+    ctx.lineWidth = Math.max(1, 0.12*focal/z);
+    ctx.beginPath(); ctx.moveTo(a,y); ctx.lineTo(b,y); ctx.stroke();
+  }
+  // 레일
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 2;
+  for (let l=0;l<3;l++) for (const off of [-0.36,0.36]){
+    const [a1,b1] = P(laneX(l)+off, 0, 0.8), [a2,b2] = P(laneX(l)+off, 0, 90);
+    ctx.beginPath(); ctx.moveTo(a1,b1); ctx.lineTo(a2,b2); ctx.stroke();
+  }
+  // 전봇대
+  const pp = G.traveled % 9;
+  for (let z = 9 - pp; z < 80; z += 9){
+    if (z < 0.8) continue;
+    for (const x of [-2.6, 2.6]){
+      const [a,b] = P(x,0,z), [,c] = P(x,2.8,z);
+      ctx.strokeStyle = C["ink-soft"]; ctx.lineWidth = Math.max(1, 0.08*focal/z);
+      ctx.beginPath(); ctx.moveTo(a,b); ctx.lineTo(a,c); ctx.stroke();
+    }
+  }
+
+  // 오브젝트: 먼 것부터
+  const list = G.objs.filter(o => o.z < 95).map(o => ({o, k:o.z}));
+  list.push({o:null, k:ZP});
+  list.sort((a,b) => b.k - a.k);
+  for (const {o} of list){
+    if (!o){ drawPlayer(); continue; }
+    ctx.globalAlpha = Math.max(0, Math.min(1, (95 - o.z)/25));
+    if (o.type === "train") drawTrain(o);
+    else if (o.type === "low") drawLow(o);
+    else if (o.type === "high") drawHigh(o);
+    else if (o.type === "coin") drawCoin(o);
+    else if (o.type === "gate") drawGate(o);
+    ctx.globalAlpha = 1;
+  }
+}
+
+// ---------- 패널 ----------
+function showPanel(html, btns){
+  state = "panel";
+  const card = $("panelCard"); card.innerHTML = html;
+  const row = document.createElement("div"); row.className = "btnrow";
+  btns.forEach(([label, fn, alt]) => {
+    const b = document.createElement("button"); b.className = "btn" + (alt ? " alt" : ""); b.textContent = label;
+    b.onclick = () => { $("panel").hidden = true; fn(); };
+    row.append(b);
+  });
+  card.append(row); $("panel").hidden = false; row.firstChild.focus({preventScroll:true});
+}
+function startMode(m){
+  mode = m;
+  document.documentElement.dataset.map = m;
+  readColors();
+  document.title = m === "math" ? "수학 레일 러너" : m === "chem" ? "화학 레일 러너" : "물리 레일 러너";
+  newGame(); state = "play";
+  SFX.init(); SFX.bgmStart();
+}
+const bestKey = (m = mode) => m === "math" ? "rail-best-math" : m === "chem" ? "rail-best-chem" : "rail-best";
+function getBest(m = mode){
+  try { return {score:+localStorage.getItem(bestKey(m)) || 0, dist:+localStorage.getItem(bestKey(m)+"-dist") || 0}; }
+  catch(e){ return {score:0, dist:0}; }
+}
+function saveBest(){
+  const b = getBest(), r = {score:false, dist:false};
+  try {
+    if (G.score > b.score){ localStorage.setItem(bestKey(), G.score); r.score = true; }
+    const d = Math.floor(G.traveled);
+    if (d > b.dist){ localStorage.setItem(bestKey()+"-dist", d); r.dist = true; }
+  } catch(e){}
+  return {old:b, ...r};
+}
+function bestLine(m){
+  const b = getBest(m);
+  return b.score ? `${b.score}점, ${b.dist} m` : "아직 기록 없음";
+}
+function startScreen(){
+  showPanel(`
+    <h1>레일 러너</h1>
+    <p>세 줄 레일 위를 굴러가는 입자예요. 마주 오는 기차는 옆 레일로 피하고, 낮은 장애물은 뛰어넘고, 빨간 가로대는 아래로 미끄러지세요.</p>
+    <table class="ctl">
+      <tr><td>좌우 스와이프</td><td>레일 이동 (← →)</td></tr>
+      <tr><td>위로 스와이프</td><td>점프 (↑, 스페이스)</td></tr>
+      <tr><td>아래로 스와이프</td><td>슬라이드 (↓)</td></tr>
+    </table>
+    <p>퀴즈가 뜨면 속도가 줄어요. 정답 글자(A, B, C)가 걸린 레일로 통과하면 +300점, 틀리면 하트 하나를 잃어요.</p>
+    <table class="ctl">
+      <tr><td>물리 맵</td><td>최고 기록: ${bestLine("phys")}<br>고2 물리학Ⅰ 심화 수준(계산, 그래프 해석, 개념 함정). 역학과 에너지, 물질과 전자기장, 파동과 정보통신 순으로 문제가 바뀌어요.</td></tr>
+      <tr><td>화학 맵</td><td>최고 기록: ${bestLine("chem")}<br>고2 화학Ⅰ 심화 수준. 몰과 반응식, 원자와 결합, 산·염기와 산화환원 순으로 문제가 바뀌어요.</td></tr>
+      <tr><td>수학 맵</td><td>최고 기록: ${bestLine("math")}<br>사칙연산 암산. 400 m마다 레벨이 올라 곱셈, 나눗셈, 연산 순서, 음수가 섞여요.</td></tr>
+    </table>`,
+    [["물리 맵", () => startMode("phys")], ["화학 맵", () => startMode("chem")], ["수학 맵", () => startMode("math")]]);
+  const card = $("panelCard");
+  card.insertBefore(skinPicker(), card.lastChild);
+}
+function gameOver(){
+  $("qcard").hidden = true;
+  SFX.bgmStop(); SFX.over();
+  const prevAll = bestAll();
+  const sb = saveBest();
+  const unlocked = SKINS.filter(k => k.need > prevAll && k.need <= bestAll()).map(k => k.name);
+  const now = getBest();
+  setTimeout(() => showPanel(`
+    <div class="meta">${mode === "math" ? "수학 맵" : mode === "chem" ? "화학 맵" : "물리 맵"}</div>
+    <h2>하트를 모두 잃었어요</h2>
+    <div class="stats">
+      거리 ${Math.floor(G.traveled)} m${sb.dist ? " (최고 기록)" : ""}<br>
+      점수 ${G.score}점${sb.score ? " (최고 기록)" : ""}<br>
+      퀴즈 ${G.correct} / ${G.tries} 정답, 에너지 구슬 ${G.coins}개
+    </div>
+    ${unlocked.length ? `<p>새 스킨 해제: ${unlocked.join(", ")}. 맵 고르기에서 바꿀 수 있어요.</p>` : ""}
+    <p>이 맵 최고 기록: ${now.score}점, ${now.dist} m</p>`, [["다시 달리기", () => startMode(mode)], ["맵 고르기", startScreen, true]]), 450);
+  state = "over";
+}
+
+// ---------- 루프 ----------
+let last = performance.now();
+function frame(t){
+  const dt = Math.min(0.05, (t - last)/1000); last = t;
+  if (state === "play") step(dt);
+  else if (state === "over" && G && G.shake > 0) G.shake -= dt;
+  draw();
+  requestAnimationFrame(frame);
+}
+const sndBtn = $("snd");
+const paintSnd = () => { sndBtn.textContent = SFX.on ? "♪ 켬" : "♪ 끔"; };
+paintSnd();
+sndBtn.addEventListener("click", e => { SFX.init(); SFX.toggle(); paintSnd(); sndBtn.blur(); });
+addEventListener("pointerdown", () => SFX.init(), {once:true});
+addEventListener("keydown", () => SFX.init(), {once:true});
+resize();
+newGame();
+startScreen();
+(document.fonts ? document.fonts.ready : Promise.resolve()).then(() => requestAnimationFrame(frame));
+})();
+</script>
+</body>
+</html>
