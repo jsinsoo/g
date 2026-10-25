@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>길을 뚫어라! - 미니 전략 게임</title>
+<style>
+:root{--ink:#172b4d;--muted:#62748a;--blue:#3478f6;--red:#f06455;--mint:#baf5d8;--gold:#ffd36a;--line:#dce5ef;--paper:#fff;--bg:#eff4fa}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 10% 0,#fff 0,#eff4fa 48%,#e6edf7 100%);font-family:system-ui,-apple-system,"Malgun Gothic",sans-serif;color:#25364a}
+main{width:min(1080px,100%);margin:auto;padding:24px 18px 36px}.hero{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:18px}.brand{display:flex;gap:14px;align-items:center}.logo{width:56px;height:56px;border-radius:18px;display:grid;place-items:center;background:linear-gradient(145deg,#3478f6,#6c4de6);color:#fff;font-size:29px;box-shadow:0 8px 20px #3478f633}.eyebrow{font-size:12px;letter-spacing:.12em;color:#62748a;font-weight:800}.hero h1{margin:1px 0 0;font-size:clamp(25px,4vw,36px);color:var(--ink);letter-spacing:-.04em}.newgame{border:0;border-radius:12px;padding:12px 17px;color:#fff;background:var(--ink);font-weight:800;font-size:14px;cursor:pointer;box-shadow:0 5px 12px #172b4d22}.newgame:hover{transform:translateY(-1px);background:#25436f}
+.layout{display:grid;grid-template-columns:minmax(300px,1.35fr) minmax(280px,.8fr);gap:18px;align-items:start}.panel{background:var(--paper);border:1px solid #e1e8f0;border-radius:20px;padding:18px;box-shadow:0 12px 35px #263b590d}.scoreboard{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;margin-bottom:14px}.player{display:flex;align-items:center;gap:10px;padding:10px;border-radius:14px;background:#f5f8fc;min-width:0}.player.active{outline:2px solid #8db5ff;background:#eff5ff}.avatar{width:37px;height:37px;border-radius:12px;display:grid;place-items:center;color:white;font-size:18px;flex:none}.avatar.human{background:var(--blue)}.avatar.cpu{background:var(--red)}.player b{display:block;color:var(--ink);font-size:14px}.player small{color:var(--muted);font-size:12px}.vs{font-weight:900;color:#a7b3c2;font-size:12px}.status{min-height:46px;border-radius:12px;background:#f5f8fc;padding:10px 12px;margin-bottom:12px;color:#34465d;font-size:14px;font-weight:650}.boardwrap{display:flex;justify-content:center;padding:4px 0 10px}.board{width:min(100%,520px);aspect-ratio:1;display:grid;grid-template-columns:repeat(17,minmax(0,1fr));grid-template-rows:repeat(17,minmax(0,1fr));gap:3px;touch-action:manipulation}.cell{grid-area:var(--r)/var(--c)/span 2/span 2;border:0;border-radius:9px;background:#edf2f8;cursor:pointer;position:relative;transition:background .12s,transform .12s}.cell:hover{background:#dfe9f5}.cell.legal{background:#d6f7e6;box-shadow:inset 0 0 0 2px #61c995}.cell.legal:hover{background:#baf0d4;transform:scale(1.04)}.pawn{position:absolute;inset:15%;border-radius:50%;box-shadow:inset 0 3px 4px #ffffff8c,0 3px 5px #0003}.pawn.blue{background:linear-gradient(145deg,#65a0ff,#2162db)}.pawn.red{background:linear-gradient(145deg,#ff9a80,#d94739)}.wallslot{grid-area:var(--r)/var(--c)/span 2/span 2;border:0;background:transparent;border-radius:5px;padding:0;cursor:pointer}.wallslot:hover,.wallslot.preview{background:#ffd36a88}.wall{z-index:2;background:#25364a;border-radius:5px;pointer-events:none;box-shadow:0 2px 3px #0003}.wall.h{grid-area:var(--r)/var(--c)/span 2/span 4}.wall.v{grid-area:var(--r)/var(--c)/span 4/span 2}.board.wallmode .wallslot{background:#f4c75e29}.board.wallmode .wallslot:hover{background:#f4c75e88}.hint{font-size:12px;text-align:center;color:#718197;margin-top:2px}.right h2{font-size:17px;color:var(--ink);margin:0 0 12px}.tools{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0 16px}.tool{border:1px solid var(--line);background:#fff;border-radius:12px;padding:10px 7px;cursor:pointer;font-weight:750;color:#40536b;font-size:12px}.tool span{display:block;font-size:19px;margin-bottom:3px}.tool.selected{border-color:#3478f6;background:#eff5ff;color:#215ec5;box-shadow:0 0 0 2px #3478f61a}.tool:disabled{opacity:.4;cursor:not-allowed}.remaining{display:flex;justify-content:space-between;gap:10px;padding:11px 12px;background:#f5f8fc;border-radius:12px;font-size:13px;margin-bottom:16px}.remaining strong{color:var(--ink)}.rules{margin:0;padding-left:19px;color:#5e7086;font-size:13px;line-height:1.8}.rules li{padding-left:2px}.callout{margin-top:15px;padding:12px;border-radius:13px;background:#fff8e8;color:#755718;font-size:12px;line-height:1.55}.log{margin-top:15px;border-top:1px solid var(--line);padding-top:12px}.logtitle{font-size:12px;color:var(--muted);font-weight:800;margin-bottom:6px}.loglist{max-height:110px;overflow:auto;font-size:12px;color:#53657a}.loglist div{padding:3px 0}.result{position:fixed;inset:0;background:#13233c99;display:none;place-items:center;padding:20px;z-index:5}.result.show{display:grid}.resultbox{max-width:390px;width:100%;background:white;border-radius:22px;padding:26px;text-align:center;box-shadow:0 20px 70px #0004}.resultbox .emoji{font-size:48px}.resultbox h2{font-size:25px;margin:5px;color:var(--ink)}.resultbox p{color:var(--muted)}.resultbox button{border:0;background:var(--blue);color:#fff;padding:11px 17px;border-radius:11px;font-weight:800;cursor:pointer}
+@media(max-width:800px){main{padding:16px 12px 28px}.layout{grid-template-columns:1fr}.right{order:2}.panel{padding:14px}.board{width:min(100%,490px)}.hero{align-items:flex-start}.newgame{padding:10px 12px}.tools{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+<main>
+  <header class="hero">
+    <div class="brand"><div class="logo">⚡</div><div><div class="eyebrow">MINI STRATEGY GAME</div><h1>길을 뚫어라!</h1></div></div>
+    <button class="newgame" id="newGame">↻ 새 게임</button>
+  </header>
+  <div class="layout">
+    <section class="panel">
+      <div class="scoreboard">
+        <div class="player" id="humanCard"><div class="avatar human">🙂</div><div><b>나 · 파랑</b><small id="humanWalls">벽 10개</small></div></div>
+        <div class="vs">VS</div>
+        <div class="player" id="cpuCard"><div class="avatar cpu">🤖</div><div><b>컴퓨터</b><small id="cpuWalls">벽 10개</small></div></div>
+      </div>
+      <div class="status" id="status" aria-live="polite">초록색 칸으로 이동하거나 벽을 놓아 길을 바꾸세요.</div>
+      <div class="boardwrap"><div class="board" id="board" role="grid" aria-label="9 곱하기 9 게임판"></div></div>
+      <div class="hint" id="hint">파란 말은 위쪽 도착선을 향해 이동합니다. 먼저 반대편 끝에 도착하세요!</div>
+    </section>
+    <aside class="panel right">
+      <h2>내 차례 행동</h2>
+      <div class="tools">
+        <button class="tool selected" data-mode="move"><span>👣</span>말 이동</button>
+        <button class="tool" data-mode="h"><span>▬</span>가로 벽</button>
+        <button class="tool" data-mode="v"><span>▮</span>세로 벽</button>
+      </div>
+      <div class="remaining"><span>내 남은 벽 <strong id="humanCount">10</strong></span><span>컴퓨터 <strong id="cpuCount">10</strong></span></div>
+      <h2>게임 방법</h2>
+      <ol class="rules">
+        <li>나는 아래에서 시작해 <b>맨 위 줄</b>에 먼저 도착하면 승리!</li>
+        <li>차례마다 말을 한 칸 옮기거나 벽 하나를 놓습니다.</li>
+        <li>벽은 두 칸 길이예요. 벽으로 상대의 길을 완전히 막을 수는 없습니다.</li>
+        <li>상대 말 바로 앞에 있으면 뛰어넘을 수 있고, 뒤가 막혔으면 옆으로 이동할 수 있어요.</li>
+        <li>컴퓨터도 길을 찾고 때로는 벽을 놓아 방해합니다.</li>
+      </ol>
+      <div class="callout">전략 팁: 자기 길만 짧게 만드는 것보다, 상대의 최단 경로를 조금 늘리는 벽이 승부를 바꿀 수 있어요.</div>
+      <div class="log"><div class="logtitle">최근 진행</div><div class="loglist" id="log"></div></div>
+    </aside>
+  </div>
+</main>
+<div class="result" id="result"><div class="resultbox"><div class="emoji" id="resultEmoji">🏆</div><h2 id="resultTitle">승리!</h2><p id="resultText">멋진 한 수였어요.</p><button id="playAgain">한 판 더 하기</button></div></div>
+<script>
+'use strict';
+const N=9, board=document.getElementById('board');
+let state;
+function freshState(){return {pawns:[{r:8,c:4},{r:0,c:4}],walls:[10,10],h:Array.from({length:8},()=>Array(8).fill(false)),v:Array.from({length:8},()=>Array(8).fill(false)),turn:0,mode:'move',over:false,busy:false,history:[]};}
+function key(r,c){return r+','+c}
+function inBounds(r,c){return r>=0&&r<N&&c>=0&&c<N}
+function blocked(r,c,nr,nc,s=state){
+ if(!inBounds(nr,nc))return true;
+ if(nr===r-1&&s.h[r-1]?.[c])return true;
+ if(nr===r+1&&s.h[r]?.[c])return true;
+ if(nc===c-1&&s.v[r]?.[c-1])return true;
+ if(nc===c+1&&s.v[r]?.[c])return true;
+ return false;
+}
+function adjacentMoves(who,s=state){
+ const p=s.pawns[who],opp=s.pawns[1-who],out=[];
+ const dirs=[[-1,0],[1,0],[0,-1],[0,1]];
+ for(const [dr,dc] of dirs){const r=p.r+dr,c=p.c+dc;if(blocked(p.r,p.c,r,c,s))continue;
+  if(r===opp.r&&c===opp.c){const jr=r+dr,jc=c+dc;
+   if(inBounds(jr,jc)&&!blocked(r,c,jr,jc,s)){out.push([jr,jc]);}
+   else {for(const [sr,sc] of [[-dc,dr],[dc,-dr]]){const rr=r+sr,cc=c+sc;if(inBounds(rr,cc)&&!blocked(r,c,rr,cc,s))out.push([rr,cc]);}}
+  }else out.push([r,c]);
+ }
+ return out;
+}
+function goalDistance(who,s=state){
+ const start=s.pawns[who],goal=who===0?0:8,q=[[start.r,start.c,0]],seen=new Set([key(start.r,start.c)]);
+ for(let i=0;i<q.length;i++){const [r,c,d]=q[i];if(r===goal)return d;
+  for(const [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1]]){const nr=r+dr,nc=c+dc,k=key(nr,nc);if(inBounds(nr,nc)&&!blocked(r,c,nr,nc,s)&&!seen.has(k)){seen.add(k);q.push([nr,nc,d+1]);}}
+ }
+ return Infinity;
+}
+function canPlace(ori,r,c,s=state){
+ if(r<0||c<0||r>7||c>7)return false;
+ if(s.walls[s.turn]===0)return false;
+ if(ori==='h'){
+  if(s.h[r][c]||(c>0&&s.h[r][c-1])||(c<7&&s.h[r][c+1]))return false;
+  // Perpendicular wall overlap/crossing check (conservative at shared joints).
+  for(let rr=Math.max(0,r-1);rr<=Math.min(7,r+1);rr++)for(let cc=Math.max(0,c-1);cc<=Math.min(7,c+2);cc++)if(s.v[rr][cc])return false;
+ }else{
+  if(s.v[r][c]||(r>0&&s.v[r-1][c])||(r<7&&s.v[r+1][c]))return false;
+  for(let rr=Math.max(0,r-1);rr<=Math.min(7,r+2);rr++)for(let cc=Math.max(0,c-1);cc<=Math.min(7,c+1);cc++)if(s.h[rr][cc])return false;
+ }
+ const copy={...s,h:s.h.map(row=>row.slice()),v:s.v.map(row=>row.slice()),pawns:s.pawns.map(p=>({...p}))};
+ copy[ori][r][c]=true;
+ return Number.isFinite(goalDistance(0,copy))&&Number.isFinite(goalDistance(1,copy));
+}
+function addLog(text){state.history.unshift(text);state.history=state.history.slice(0,7);document.getElementById('log').innerHTML=state.history.map(x=>'<div>'+x+'</div>').join('');}
+function render(){
+ board.innerHTML='';board.classList.toggle('wallmode',state.mode!=='move');
+ const legal=state.turn===0&&!state.over&&!state.busy&&state.mode==='move'?adjacentMoves(0).map(p=>key(...p)):[];
+ for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+  const cell=document.createElement('button');cell.className='cell'+(legal.includes(key(r,c))?' legal':'');cell.style.setProperty('--r',2*r+1);cell.style.setProperty('--c',2*c+1);cell.setAttribute('aria-label',`행 ${r+1}, 열 ${c+1}`);cell.setAttribute('role','gridcell');
+  for(let who=0;who<2;who++)if(state.pawns[who].r===r&&state.pawns[who].c===c){const pawn=document.createElement('span');pawn.className='pawn '+(who===0?'blue':'red');cell.appendChild(pawn)}
+  cell.onclick=()=>tryMove(r,c);board.appendChild(cell);
+ }
+ // Wall placement targets: each anchor is the start of a two-cell wall.
+ if(state.mode!=='move'&&state.turn===0&&!state.over&&!state.busy){for(let r=0;r<8;r++)for(let c=0;c<8;c++){
+  const slot=document.createElement('button');slot.className='wallslot';slot.style.setProperty('--r',state.mode==='h'?2*r+2:2*r+1);slot.style.setProperty('--c',state.mode==='h'?2*c+1:2*c+2);slot.setAttribute('aria-label',`${r+1}행 ${c+1}열에 ${state.mode==='h'?'가로':'세로'} 벽`);
+  if(canPlace(state.mode,r,c))slot.onclick=()=>placeWall(state.mode,r,c,0);else slot.disabled=true;
+  board.appendChild(slot);
+ }}
+ // Render placed walls above cells.
+ for(let r=0;r<8;r++)for(let c=0;c<8;c++)for(const ori of ['h','v'])if(state[ori][r][c]){const w=document.createElement('div');w.className='wall '+ori;w.style.setProperty('--r',ori==='h'?2*r+2:2*r+1);w.style.setProperty('--c',ori==='h'?2*c+1:2*c+2);board.appendChild(w)}
+ document.getElementById('humanWalls').textContent='벽 '+state.walls[0]+'개';document.getElementById('cpuWalls').textContent='벽 '+state.walls[1]+'개';document.getElementById('humanCount').textContent=state.walls[0];document.getElementById('cpuCount').textContent=state.walls[1];
+ document.getElementById('humanCard').classList.toggle('active',state.turn===0&&!state.over);document.getElementById('cpuCard').classList.toggle('active',state.turn===1&&!state.over);
+ document.querySelectorAll('.tool').forEach(b=>{b.classList.toggle('selected',b.dataset.mode===state.mode);b.disabled=state.turn!==0||state.over||state.busy||(b.dataset.mode!=='move'&&state.walls[0]===0)});
+ if(state.over)return;
+ document.getElementById('status').textContent=state.busy?'컴퓨터가 수를 생각하고 있어요…':state.turn===0?(state.mode==='move'?'초록색 칸으로 이동하거나, 오른쪽에서 벽을 선택하세요.':`놓을 수 있는 ${state.mode==='h'?'가로':'세로'} 벽 자리를 선택하세요.`):'컴퓨터 차례입니다.';
+ document.getElementById('hint').textContent=state.mode==='move'?'초록색 칸을 눌러 말을 이동하세요.':'노란색으로 표시되는 자리를 눌러 벽을 설치하세요.';
+}
+function tryMove(r,c){if(state.turn!==0||state.over||state.busy||state.mode!=='move')return;if(!adjacentMoves(0).some(p=>p[0]===r&&p[1]===c))return;state.pawns[0]={r,c};addLog(`나: (${r+1},${c+1})로 이동`);afterAction(0)}
+function placeWall(ori,r,c,who){if(state.over||state.busy||!canPlace(ori,r,c))return;state[ori][r][c]=true;state.walls[who]--;addLog(`${who===0?'나':'컴퓨터'}: ${ori==='h'?'가로':'세로'} 벽 설치`);afterAction(who)}
+function afterAction(who){const goal=who===0?0:8;if(state.pawns[who].r===goal){state.over=true;render();showResult(who);return}state.turn=1-who;state.mode='move';render();if(state.turn===1){state.busy=true;render();setTimeout(cpuTurn,450)}}
+function showResult(who){document.getElementById('resultEmoji').textContent=who===0?'🏆':'🤖';document.getElementById('resultTitle').textContent=who===0?'승리!':'컴퓨터 승리';document.getElementById('resultText').textContent=who===0?'멋진 전략으로 결승선에 도착했어요!':'아쉽지만 괜찮아요. 벽을 활용해 다시 도전해 보세요!';document.getElementById('result').classList.add('show');document.getElementById('status').textContent=who===0?'축하합니다! 내가 먼저 도착했어요.':'컴퓨터가 먼저 도착했습니다.'}
+function cpuTurn(){if(state.over)return;state.busy=false;
+ const me=1, them=0, currentMe=goalDistance(me), currentThem=goalDistance(them);let bestWall=null,bestScore=0;
+ // Examine legal walls; AI places one only when it creates a meaningful route advantage.
+ if(state.walls[1]>0){for(const ori of ['h','v'])for(let r=0;r<8;r++)for(let c=0;c<8;c++)if(canPlace(ori,r,c,state)){
+   const test={...state,h:state.h.map(row=>row.slice()),v:state.v.map(row=>row.slice()),pawns:state.pawns.map(p=>({...p})),walls:state.walls.slice(),turn:1};test[ori][r][c]=true;
+   const dm=goalDistance(me,test),dt=goalDistance(them,test);const score=(dt-currentThem)-(dm-currentMe)*0.72;
+   if(score>bestScore){bestScore=score;bestWall={ori,r,c}}
+  }}
+ if(bestWall&&bestScore>=1.25&&Math.random()<0.72){placeWall(bestWall.ori,bestWall.r,bestWall.c,1);return}
+ const moves=adjacentMoves(me);let best=null,bestVal=Infinity;
+ for(const [r,c] of moves){const copy={...state,pawns:state.pawns.map(p=>({...p}))};copy.pawns[me]={r,c};const d=goalDistance(me,copy),op=goalDistance(them,copy);const val=d-op*0.035+Math.random()*0.08;if(val<bestVal){bestVal=val;best=[r,c]}}
+ if(best){state.pawns[me]={r:best[0],c:best[1]};addLog(`컴퓨터: (${best[0]+1},${best[1]+1})로 이동`);afterAction(1)}
+}
+document.querySelectorAll('.tool').forEach(b=>b.addEventListener('click',()=>{if(state.turn!==0||state.busy||state.over)return;state.mode=b.dataset.mode;render()}));
+document.getElementById('newGame').onclick=reset;document.getElementById('playAgain').onclick=reset;
+function reset(){state=freshState();document.getElementById('result').classList.remove('show');document.getElementById('log').innerHTML='';render()}
+state=freshState();render();
+</script>
+</body>
+</html>
