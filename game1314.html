@@ -1,0 +1,1842 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>금마의 숲 · Forest of Geumma</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #1b2a1f; }
+  body {
+    font-family: 'Galmuri11', 'DungGeunMo', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+    color: #4a3728;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  canvas#game { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+
+  /* ---------- 공통 패널 스킨 ---------- */
+  .panel {
+    background: #fdf6e3;
+    border: 3px solid #4a3728;
+    border-radius: 14px;
+    box-shadow: 0 6px 0 rgba(74,55,40,.35), 0 12px 28px rgba(0,0,0,.35);
+  }
+
+  #ui { position: fixed; inset: 0; pointer-events: none; }
+  #ui > * { pointer-events: auto; }
+
+  /* ---------- HUD ---------- */
+  #hud {
+    position: absolute; top: 14px; left: 14px;
+    padding: 10px 14px; min-width: 190px;
+  }
+  #hud .row { display: flex; justify-content: space-between; gap: 14px; font-size: 15px; line-height: 1.6; }
+  #hud .date { font-weight: bold; }
+  #hud .clock { color: #7a5c3e; }
+  #hud .bells { color: #b8860b; font-weight: bold; }
+  #weather { position: absolute; top: 14px; right: 14px; padding: 8px 14px; font-size: 15px; }
+
+  /* ---------- 핫바 ---------- */
+  #hotbar {
+    position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 8px; padding: 8px;
+  }
+  .slot {
+    width: 58px; height: 58px; border-radius: 10px;
+    background: #f0e2c0; border: 3px solid #c8ab7e;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-size: 24px; position: relative; cursor: pointer; transition: transform .08s;
+  }
+  .slot .key { position: absolute; top: 1px; left: 4px; font-size: 10px; color: #a08050; }
+  .slot .nm  { font-size: 10px; color: #7a5c3e; margin-top: 1px; }
+  .slot.active { background: #ffe9a8; border-color: #4a3728; transform: translateY(-6px); }
+  .slot:active { transform: translateY(-2px); }
+
+  /* ---------- 토스트 ---------- */
+  #toasts {
+    position: absolute; top: 76px; left: 50%; transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    pointer-events: none;
+  }
+  .toast {
+    padding: 8px 18px; font-size: 15px; border-radius: 999px;
+    background: rgba(253,246,227,.96); border: 2px solid #4a3728;
+    box-shadow: 0 3px 0 rgba(74,55,40,.3);
+    animation: pop .25s ease-out, fade .4s ease-in 1.9s forwards;
+  }
+  @keyframes pop  { from { transform: translateY(-10px) scale(.9); opacity: 0 } }
+  @keyframes fade { to { opacity: 0; transform: translateY(-8px) } }
+
+  /* ---------- 대화창 ---------- */
+  #dialogue {
+    position: absolute; bottom: 90px; left: 50%; transform: translateX(-50%);
+    width: min(620px, calc(100% - 32px)); padding: 16px 20px 20px; display: none;
+  }
+  #dialogue.on { display: block; }
+  #dialogue .who {
+    position: absolute; top: -16px; left: 20px;
+    background: #4a3728; color: #fdf6e3; padding: 3px 14px;
+    border-radius: 999px; font-size: 13px;
+  }
+  #dialogue .txt { font-size: 17px; line-height: 1.7; min-height: 58px; white-space: pre-wrap; }
+  #dialogue .next { position: absolute; right: 16px; bottom: 8px; font-size: 12px; color: #a08050; }
+
+  /* ---------- 오버레이 패널 ---------- */
+  #overlay {
+    position: absolute; inset: 0; background: rgba(20,25,18,.55);
+    display: none; align-items: center; justify-content: center; padding: 20px;
+  }
+  #overlay.on { display: flex; }
+  #sheet { width: min(620px, 100%); max-height: 84vh; padding: 18px; overflow: auto; }
+  #sheet h2 { font-size: 20px; margin-bottom: 4px; }
+  #sheet .sub { font-size: 13px; color: #a08050; margin-bottom: 14px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
+  .cell {
+    background: #f0e2c0; border: 3px solid #c8ab7e; border-radius: 10px;
+    padding: 10px 6px; text-align: center; cursor: pointer; transition: transform .08s;
+  }
+  .cell:hover { border-color: #4a3728; transform: translateY(-3px); }
+  .cell.dim { opacity: .38; cursor: default; }
+  .cell.dim:hover { transform: none; border-color: #c8ab7e; }
+  .cell .ico { font-size: 28px; line-height: 1.2; }
+  .cell .nm { font-size: 12px; margin-top: 3px; }
+  .cell .ct { font-size: 11px; color: #a08050; }
+  #sheet .foot { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+  button.btn {
+    font: inherit; font-size: 14px; padding: 8px 16px; cursor: pointer;
+    background: #ffe9a8; border: 3px solid #4a3728; border-radius: 10px; color: #4a3728;
+    box-shadow: 0 3px 0 rgba(74,55,40,.4);
+  }
+  button.btn:active { transform: translateY(3px); box-shadow: none; }
+  button.btn.ghost { background: #f0e2c0; }
+
+  /* ---------- 도움말 ---------- */
+  #help {
+    position: absolute; bottom: 16px; right: 16px; padding: 12px 16px;
+    font-size: 13px; line-height: 1.9; max-width: 260px;
+  }
+  #help b { color: #b8860b; }
+  #help.mini { padding: 8px 12px; cursor: pointer; }
+  #help.mini .body { display: none; }
+
+  /* ---------- 낚시 바 ---------- */
+  #fishbar {
+    position: absolute; bottom: 90px; left: 50%; transform: translateX(-50%);
+    padding: 10px 18px; font-size: 16px; display: none;
+  }
+  #fishbar.on { display: block; }
+  #fishbar.bite { background: #ffe9a8; animation: shake .12s infinite; }
+  @keyframes shake { 50% { transform: translateX(-50%) translateY(-3px); } }
+
+  /* ---------- 타이틀 ---------- */
+  #title {
+    position: absolute; inset: 0; background: #2f4a33;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+    color: #fdf6e3; text-align: center;
+  }
+  #title.off { display: none; }
+  #title h1 { font-size: 42px; letter-spacing: 2px; text-shadow: 0 4px 0 rgba(0,0,0,.3); }
+  #title .en { font-size: 15px; color: #a7c9a0; letter-spacing: 4px; }
+  #title .tip { font-size: 13px; color: #8fae89; margin-top: 8px; line-height: 2; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="ui">
+  <div id="hud" class="panel">
+    <div class="row"><span class="date" id="hDate">1일차 · 봄</span><span class="clock" id="hClock">06:00</span></div>
+    <div class="row"><span>소지금</span><span class="bells" id="hBells">0 벨</span></div>
+  </div>
+
+  <div id="weather" class="panel">☀️ 맑음</div>
+
+  <div id="toasts"></div>
+
+  <div id="fishbar" class="panel">🎣 찌를 지켜보는 중…</div>
+
+  <div id="dialogue" class="panel">
+    <div class="who" id="dWho">주민</div>
+    <div class="txt" id="dTxt"></div>
+    <div class="next">스페이스 / 클릭 ▸</div>
+  </div>
+
+  <div id="hotbar" class="panel"></div>
+
+  <div id="help" class="panel">
+    <b>조작</b>
+    <div class="body">
+      이동 <b>WASD·방향키</b><br>
+      사용/대화 <b>스페이스</b><br>
+      도구 <b>1~5</b> · 가방 <b>I</b><br>
+      도감 <b>C</b> · 저장 <b>F5</b><br>
+      도움말 접기 <b>H</b>
+    </div>
+  </div>
+
+  <div id="overlay">
+    <div id="sheet" class="panel"></div>
+  </div>
+
+  <div id="title">
+    <div class="en">FOREST OF GEUMMA</div>
+    <h1>금마의 숲</h1>
+    <button class="btn" id="btnStart">섬으로 떠나기</button>
+    <button class="btn ghost" id="btnLoad" style="display:none">이어서 하기</button>
+    <div class="tip">나무를 흔들고, 물고기를 낚고, 벌레를 잡고,<br>주민들과 이야기하며 나만의 섬을 가꿔보세요.</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* =========================================================================
+   금마의 숲 — 데이터 정의
+   ========================================================================= */
+
+const TILE = 32;
+const MAP_W = 80, MAP_H = 64;
+const T_WATER = 0, T_SAND = 1, T_GRASS = 2, T_PATH = 3;
+
+const SAVE_KEY = 'forest-of-geumma-v1';
+
+/* --- 아이템 도감 --------------------------------------------------------- */
+const ITEMS = {
+  wood:      { nm: '나무',       ic: '🪵', price: 60,   cat: 'mat' },
+  hardwood:  { nm: '단단한나무', ic: '🟫', price: 90,   cat: 'mat' },
+  stone:     { nm: '돌',         ic: '🪨', price: 75,   cat: 'mat' },
+  iron:      { nm: '철광석',     ic: '⛏️', price: 375,  cat: 'mat' },
+  clay:      { nm: '점토',       ic: '🧱', price: 100,  cat: 'mat' },
+  weed:      { nm: '잡초',       ic: '🌿', price: 10,   cat: 'mat' },
+  branch:    { nm: '나뭇가지',   ic: '🥢', price: 5,    cat: 'mat' },
+  shell:     { nm: '조개껍데기', ic: '🐚', price: 90,   cat: 'mat' },
+
+  apple:     { nm: '사과',       ic: '🍎', price: 100,  cat: 'fruit' },
+  orange:    { nm: '오렌지',     ic: '🍊', price: 100,  cat: 'fruit' },
+  peach:     { nm: '복숭아',     ic: '🍑', price: 100,  cat: 'fruit' },
+  cherry:    { nm: '체리',       ic: '🍒', price: 100,  cat: 'fruit' },
+  coconut:   { nm: '야자열매',   ic: '🥥', price: 250,  cat: 'fruit' },
+
+  f_red:     { nm: '빨간 튤립',  ic: '🌷', price: 40,   cat: 'flower' },
+  f_white:   { nm: '하얀 코스모스', ic: '🌼', price: 40, cat: 'flower' },
+  f_blue:    { nm: '파란 팬지',  ic: '💠', price: 60,   cat: 'flower' },
+  f_yellow:  { nm: '노란 국화',  ic: '🌻', price: 40,   cat: 'flower' },
+
+  bell_bag:  { nm: '벨 주머니',  ic: '💰', price: 0,    cat: 'special' },
+  fossil:    { nm: '화석',       ic: '🦴', price: 1400, cat: 'special' },
+  gyroid:    { nm: '토용',       ic: '🏺', price: 800,  cat: 'special' },
+};
+
+/* --- 물고기 -------------------------------------------------------------- */
+const FISH = [
+  { id: 'fish_bluegill', nm: '블루길',   ic: '🐟', price: 180,  rare: 1,  size: 0.9 },
+  { id: 'fish_crucian',  nm: '붕어',     ic: '🐠', price: 160,  rare: 1,  size: 0.9 },
+  { id: 'fish_carp',     nm: '잉어',     ic: '🐡', price: 300,  rare: 2,  size: 1.2 },
+  { id: 'fish_bass',     nm: '농어',     ic: '🐟', price: 400,  rare: 2,  size: 1.3 },
+  { id: 'fish_seabream', nm: '참돔',     ic: '🐠', price: 3000, rare: 4,  size: 1.4, sea: true },
+  { id: 'fish_squid',    nm: '오징어',   ic: '🦑', price: 500,  rare: 3,  size: 1.1, sea: true },
+  { id: 'fish_shark',    nm: '귀상어',   ic: '🦈', price: 8000, rare: 6,  size: 2.0, sea: true },
+  { id: 'fish_koi',      nm: '비단잉어', ic: '🎏', price: 4000, rare: 5,  size: 1.4 },
+  { id: 'fish_boot',     nm: '장화',     ic: '🥾', price: 10,   rare: 1,  size: 0.8 },
+  { id: 'fish_can',      nm: '빈 깡통',  ic: '🥫', price: 10,   rare: 1,  size: 0.8 },
+];
+
+/* --- 곤충 ---------------------------------------------------------------- */
+const BUGS = [
+  { id: 'bug_butterfly', nm: '노랑나비',     ic: '🦋', price: 160,  rare: 1, day: true },
+  { id: 'bug_ladybug',   nm: '무당벌레',     ic: '🐞', price: 200,  rare: 1, day: true },
+  { id: 'bug_bee',       nm: '꿀벌',         ic: '🐝', price: 300,  rare: 2, day: true },
+  { id: 'bug_dragonfly', nm: '잠자리',       ic: '🪰', price: 180,  rare: 1, day: true },
+  { id: 'bug_beetle',    nm: '사슴벌레',     ic: '🪲', price: 2000, rare: 3, night: true },
+  { id: 'bug_hercules',  nm: '장수풍뎅이',   ic: '🪳', price: 8000, rare: 5, night: true },
+  { id: 'bug_firefly',   nm: '반딧불이',     ic: '✨', price: 300,  rare: 2, night: true },
+  { id: 'bug_snail',     nm: '달팽이',       ic: '🐌', price: 250,  rare: 1, day: true, night: true },
+  { id: 'bug_cricket',   nm: '귀뚜라미',     ic: '🦗', price: 430,  rare: 2, night: true },
+];
+
+const CATALOG = {};
+for (const k in ITEMS) CATALOG[k] = ITEMS[k];
+for (const f of FISH) CATALOG[f.id] = { nm: f.nm, ic: f.ic, price: f.price, cat: 'fish' };
+for (const b of BUGS) CATALOG[b.id] = { nm: b.nm, ic: b.ic, price: b.price, cat: 'bug' };
+
+/* --- 도구 ---------------------------------------------------------------- */
+const TOOLS = [
+  { id: 'hand',   nm: '맨손',   ic: '✋' },
+  { id: 'axe',    nm: '도끼',   ic: '🪓' },
+  { id: 'shovel', nm: '삽',     ic: '🥄' },
+  { id: 'net',    nm: '잠자리채', ic: '🥅' },
+  { id: 'rod',    nm: '낚싯대', ic: '🎣' },
+];
+
+/* --- 과일 나무 종류 ------------------------------------------------------ */
+const TREE_FRUITS = ['apple', 'orange', 'peach', 'cherry'];
+
+/* --- 주민 ---------------------------------------------------------------- */
+const VILLAGER_DEFS = [
+  { name: '삐악',  species: 'chick',  body: '#f7d354', accent: '#e8892b',
+    lines: ['오늘 하늘이 정말 맑아! 삐약!', '나무 열매를 모으면 너굴 상점에서 팔 수 있어.',
+            '내 꿈은 이 섬에서 제일 큰 정원을 갖는 거야!', '혹시 잡초 좀 뽑아줄래? 마을이 지저분해졌어.'] },
+  { name: '모모',  species: 'rabbit', body: '#f4b8c8', accent: '#d96b8f',
+    lines: ['깡총! 오늘도 산책 중이야.', '밤에는 반딧불이가 나온대. 잠자리채 챙겨!',
+            '바다 쪽 물고기가 훨씬 비싸게 팔려.', '너 오늘 표정이 좋아 보인다!'] },
+  { name: '곰돌',  species: 'bear',   body: '#b98a5a', accent: '#7a5233',
+    lines: ['음… 낮잠 자기 딱 좋은 날씨군.', '도끼로 나무를 세 번 치면 밑동만 남아.',
+            '삽으로 땅을 파면 가끔 화석이 나오더라고.', '배가 고프네. 복숭아 없나?'] },
+  { name: '냥이',  species: 'cat',    body: '#9fd4e8', accent: '#4b8fb0',
+    lines: ['냐앙~ 오늘도 반가워!', '구덩이에 과일을 묻으면 나무가 자란대.',
+            '섬 이름이 금마의 숲이라니, 멋지지 않아?', '조개껍데기는 해변에서 잘 주워져.'] },
+  { name: '두더',  species: 'mole',   body: '#a89b8c', accent: '#6b6157',
+    lines: ['땅속은 아늑해서 좋아.', '바위를 계속 치면 여러 번 나와. 빨리 쳐야 해!',
+            '철광석은 비싸게 팔리니까 잘 챙겨둬.', '흠… 오늘도 열심히 파야지.'] },
+];
+
+/* =========================================================================
+   유틸리티
+   ========================================================================= */
+
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+const smooth = t => t * t * (3 - 2 * t);
+const pick = (arr, rnd) => arr[Math.floor((rnd || Math.random)() * arr.length)];
+const key = (x, y) => x + ',' + y;
+
+/* 값 노이즈 (fbm) */
+function makeNoise(seed) {
+  const rnd = mulberry32(seed);
+  const P = new Float32Array(256 * 256);
+  for (let i = 0; i < P.length; i++) P[i] = rnd();
+  const at = (x, y) => P[((y & 255) << 8) + (x & 255)];
+  const val = (x, y) => {
+    const xi = Math.floor(x), yi = Math.floor(y);
+    const tx = smooth(x - xi), ty = smooth(y - yi);
+    return lerp(lerp(at(xi, yi), at(xi + 1, yi), tx),
+                lerp(at(xi, yi + 1), at(xi + 1, yi + 1), tx), ty);
+  };
+  return (x, y, oct) => {
+    oct = oct || 4;
+    let s = 0, amp = 1, f = 1, norm = 0;
+    for (let i = 0; i < oct; i++) { s += val(x * f, y * f) * amp; norm += amp; amp *= 0.5; f *= 2; }
+    return s / norm;
+  };
+}
+
+/* =========================================================================
+   게임 상태
+   ========================================================================= */
+
+const S = {
+  seed: 0,
+  tiles: null,            // Uint8Array(MAP_W*MAP_H)
+  objects: new Map(),     // "x,y" -> 오브젝트
+  player: { x: 0, y: 0, dir: 'down', anim: 0, moving: false, act: 0, actKind: '' },
+  spawn: { x: 0, y: 0 },
+  homeTile: null,
+  shopTile: null,
+  tool: 0,
+  bells: 300,
+  inv: [],                // [{id, n}]
+  invMax: 20,
+  minutes: 6 * 60,        // 게임 내 분 (0~1439)
+  day: 1,
+  weather: 'sunny',
+  villagers: [],
+  bugs: [],
+  fishes: [],
+  caught: {},             // id -> 잡은 마리수
+  fishing: null,          // {tx, ty, state, timer, fish}
+  paused: true,
+  shakeT: 0,
+};
+
+const tileAt = (x, y) => (x < 0 || y < 0 || x >= MAP_W || y >= MAP_H) ? T_WATER : S.tiles[y * MAP_W + x];
+const setTile = (x, y, v) => { if (x >= 0 && y >= 0 && x < MAP_W && y < MAP_H) S.tiles[y * MAP_W + x] = v; };
+const objAt = (x, y) => S.objects.get(key(x, y));
+
+function isSolid(x, y) {
+  if (tileAt(x, y) === T_WATER) return true;
+  const o = objAt(x, y);
+  if (!o) return false;
+  return o.t === 'tree' || o.t === 'rock' || o.t === 'house' || o.t === 'shop' || o.t === 'stump';
+}
+
+/* =========================================================================
+   섬 생성
+   ========================================================================= */
+
+function generateWorld(seed) {
+  S.seed = seed;
+  const rnd = mulberry32(seed);
+  const noise = makeNoise(seed);
+  S.tiles = new Uint8Array(MAP_W * MAP_H);
+  S.objects.clear();
+
+  const cx = MAP_W / 2, cy = MAP_H / 2;
+  for (let y = 0; y < MAP_H; y++) {
+    for (let x = 0; x < MAP_W; x++) {
+      // 타원형 감쇠 + 노이즈로 섬 실루엣을 만든다
+      const dx = (x - cx) / (MAP_W * 0.46);
+      const dy = (y - cy) / (MAP_H * 0.44);
+      const d = Math.sqrt(dx * dx + dy * dy);
+      const h = noise(x * 0.055, y * 0.055, 4) * 0.95 - d * 1.15 + 0.42;
+      S.tiles[y * MAP_W + x] = h > 0.34 ? T_GRASS : h > 0.20 ? T_SAND : T_WATER;
+    }
+  }
+
+  // 섬을 가로지르는 강
+  const ry = cy + (rnd() - 0.5) * 10;
+  for (let x = 6; x < MAP_W - 6; x++) {
+    const yy = Math.round(ry + Math.sin(x * 0.12 + seed) * 6 + Math.sin(x * 0.041) * 4);
+    const w = 1 + Math.round(noise(x * 0.1, 99, 2) * 1.6);
+    for (let o = -w; o <= w; o++) setTile(x, yy + o, T_WATER);
+  }
+
+  // 물가에 모래 테두리 두르기
+  const beach = [];
+  for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) {
+    if (tileAt(x, y) !== T_GRASS) continue;
+    for (let d = 0; d < 4; d++) {
+      const nx = x + [1, -1, 0, 0][d], ny = y + [0, 0, 1, -1][d];
+      if (tileAt(nx, ny) === T_WATER) { beach.push(y * MAP_W + x); break; }
+    }
+  }
+  for (const i of beach) S.tiles[i] = T_SAND;
+
+  // 강을 건널 다리 두 개 (좁은 지점을 찾아 길로 덮는다)
+  for (const bx of [Math.floor(MAP_W * 0.33), Math.floor(MAP_W * 0.67)]) {
+    for (let y = 8; y < MAP_H - 8; y++) {
+      if (tileAt(bx, y) !== T_WATER || tileAt(bx, y - 1) === T_WATER) continue;
+      let e = y;
+      while (e < MAP_H && tileAt(bx, e) === T_WATER) e++;
+      if (e - y <= 8) {
+        for (let k = y - 1; k <= e; k++)
+          for (let d = -1; d <= 1; d++) setTile(bx + d, k, T_PATH);
+      }
+      break;
+    }
+  }
+
+  // 오브젝트 배치
+  for (let y = 1; y < MAP_H - 1; y++) {
+    for (let x = 1; x < MAP_W - 1; x++) {
+      const t = tileAt(x, y);
+      const r = rnd();
+      if (t === T_GRASS) {
+        if (r < 0.075) {
+          S.objects.set(key(x, y), {
+            t: 'tree', kind: 'hard', hp: 3, shake: 0,
+            fruit: rnd() < 0.5 ? pick(TREE_FRUITS, rnd) : null,
+          });
+        } else if (r < 0.095) {
+          S.objects.set(key(x, y), { t: 'rock', hits: 0, cool: 0 });
+        } else if (r < 0.135) {
+          S.objects.set(key(x, y), { t: 'flower', id: pick(['f_red', 'f_white', 'f_blue', 'f_yellow'], rnd) });
+        } else if (r < 0.185) {
+          S.objects.set(key(x, y), { t: 'weed' });
+        }
+      } else if (t === T_SAND) {
+        if (r < 0.03) S.objects.set(key(x, y), { t: 'shell' });
+        else if (r < 0.045) S.objects.set(key(x, y), { t: 'tree', kind: 'palm', hp: 3, shake: 0, fruit: 'coconut' });
+      }
+    }
+  }
+
+  // 땅속 보물
+  let buried = 0, guard = 0;
+  while (buried < 20 && guard++ < 5000) {
+    const x = 2 + Math.floor(rnd() * (MAP_W - 4)), y = 2 + Math.floor(rnd() * (MAP_H - 4));
+    if (tileAt(x, y) !== T_GRASS || objAt(x, y)) continue;
+    const r = rnd();
+    const loot = r < 0.4 ? 'fossil' : r < 0.6 ? 'gyroid' : r < 0.8 ? 'clay' : 'bell_bag';
+    S.objects.set(key(x, y), { t: 'buried', loot });
+    buried++;
+  }
+
+  // 건물
+  const home = findClearing(rnd);
+  placeBuilding(home.x, home.y, 'house');
+  const shop = findClearing(rnd, home.x, home.y);
+  placeBuilding(shop.x, shop.y, 'shop');
+
+  S.player.x = (home.x + 0.5) * TILE;
+  S.player.y = (home.y + 3.4) * TILE;
+  S.spawn = { x: S.player.x, y: S.player.y };
+
+  spawnVillagers(rnd);
+}
+
+/* 건물이 들어갈 만한 평지 찾기 */
+function findClearing(rnd, avoidX, avoidY) {
+  for (let tries = 0; tries < 4000; tries++) {
+    const x = 6 + Math.floor(rnd() * (MAP_W - 12));
+    const y = 6 + Math.floor(rnd() * (MAP_H - 12));
+    if (avoidX !== undefined && Math.hypot(x - avoidX, y - avoidY) < 12) continue;
+    let ok = true;
+    for (let dy = -1; dy <= 4 && ok; dy++)
+      for (let dx = -2; dx <= 2 && ok; dx++)
+        if (tileAt(x + dx, y + dy) !== T_GRASS) ok = false;
+    if (ok) return { x, y };
+  }
+  return { x: Math.floor(MAP_W / 2), y: Math.floor(MAP_H / 2) };
+}
+
+function placeBuilding(x, y, type) {
+  for (let dy = -1; dy <= 3; dy++)
+    for (let dx = -2; dx <= 2; dx++)
+      S.objects.delete(key(x + dx, y + dy));
+  for (let dy = 0; dy < 2; dy++)
+    for (let dx = -1; dx <= 1; dx++)
+      S.objects.set(key(x + dx, y + dy), { t: type, root: dx === 0 && dy === 1, ox: dx, oy: dy });
+  for (let dx = -1; dx <= 1; dx++) { setTile(x + dx, y + 2, T_PATH); setTile(x + dx, y + 3, T_PATH); }
+  if (type === 'house') S.homeTile = { x, y }; else S.shopTile = { x, y };
+}
+
+function spawnVillagers(rnd) {
+  S.villagers = [];
+  for (const def of VILLAGER_DEFS) {
+    let x = 0, y = 0, guard = 0;
+    do {
+      x = 4 + Math.floor(rnd() * (MAP_W - 8));
+      y = 4 + Math.floor(rnd() * (MAP_H - 8));
+    } while (isSolid(x, y) && guard++ < 3000);
+    S.villagers.push({
+      def, x: (x + 0.5) * TILE, y: (y + 0.5) * TILE,
+      dir: 'down', tx: (x + 0.5) * TILE, ty: (y + 0.5) * TILE,
+      wait: rnd() * 2, anim: 0, moving: false,
+    });
+  }
+}
+
+/* =========================================================================
+   인벤토리 · 도감
+   ========================================================================= */
+
+function invCount(id) {
+  const s = S.inv.find(s => s.id === id);
+  return s ? s.n : 0;
+}
+
+function addItem(id, n) {
+  n = n || 1;
+  const def = CATALOG[id];
+  if (!def) return false;
+  const slot = S.inv.find(s => s.id === id);
+  if (slot) { slot.n += n; }
+  else if (S.inv.length < S.invMax) { S.inv.push({ id, n }); }
+  else { toast('가방이 가득 찼어! (' + def.nm + ')'); return false; }
+  toast(def.ic + ' ' + def.nm + (n > 1 ? ' x' + n : '') + ' 획득!');
+  return true;
+}
+
+function removeItem(id, n) {
+  n = n || 1;
+  const i = S.inv.findIndex(s => s.id === id);
+  if (i < 0 || S.inv[i].n < n) return false;
+  S.inv[i].n -= n;
+  if (S.inv[i].n <= 0) S.inv.splice(i, 1);
+  return true;
+}
+
+function logCatch(id) { S.caught[id] = (S.caught[id] || 0) + 1; }
+function gainBells(n) { S.bells += n; updateHUD(); }
+
+/* =========================================================================
+   시간 · 날씨
+   ========================================================================= */
+
+const isNight = () => S.minutes < 5 * 60 || S.minutes >= 19 * 60;
+
+let lastShownMinute = -1;
+function tickClock(dt) {
+  // 실시간 1초 = 게임 1분 → 하루 24분
+  S.minutes += dt * 60;
+  if (S.minutes >= 1440) {
+    S.minutes -= 1440;
+    S.day++;
+    onNewDay();
+  }
+  const m = Math.floor(S.minutes);
+  if (m !== lastShownMinute) { lastShownMinute = m; updateHUD(); }
+}
+
+function onNewDay() {
+  const rnd = mulberry32(S.seed + S.day * 7919);
+  // 열매가 다시 열리고, 바위가 회복되고, 잡초가 자란다
+  for (const [k, o] of S.objects) {
+    if (o.t === 'tree' && o.kind !== 'palm' && !o.fruit && rnd() < 0.55) o.fruit = pick(TREE_FRUITS, rnd);
+    if (o.t === 'tree' && o.kind === 'palm' && !o.fruit && rnd() < 0.5) o.fruit = 'coconut';
+    if (o.t === 'rock') { o.hits = 0; o.cool = 0; }
+    if (o.t === 'sapling') { o.age++; }
+  }
+  // 다 자란 묘목은 나무가 된다
+  for (const [k, o] of S.objects) {
+    if (o.t === 'sapling' && o.age >= 2) {
+      S.objects.set(k, { t: 'tree', kind: 'hard', hp: 3, shake: 0, fruit: o.fruit });
+    }
+  }
+  // 잡초 번식
+  let grown = 0;
+  for (let i = 0; i < 400 && grown < 25; i++) {
+    const x = 1 + Math.floor(rnd() * (MAP_W - 2)), y = 1 + Math.floor(rnd() * (MAP_H - 2));
+    if (tileAt(x, y) === T_GRASS && !objAt(x, y)) { S.objects.set(key(x, y), { t: 'weed' }); grown++; }
+  }
+  S.weather = rnd() < 0.25 ? 'rain' : rnd() < 0.15 ? 'cloud' : 'sunny';
+  toast('☀️ ' + S.day + '일차 아침이 밝았어요!');
+  updateHUD();
+  saveGame(true);
+}
+
+/* =========================================================================
+   입력
+   ========================================================================= */
+
+const keys = {};
+let pressBuffer = false;
+
+addEventListener('keydown', e => {
+  if (e.key === 'F5') return;               // 새로고침은 그대로 둔다
+  const k = e.key.toLowerCase();
+  if (!keys[k]) {
+    if (k === ' ' || k === 'enter') pressBuffer = true;
+    if (k >= '1' && k <= '5') selectTool(+k - 1);
+    if (k === 'i') togglePanel('inv');
+    if (k === 'c') togglePanel('cat');
+    if (k === 'h') document.getElementById('help').classList.toggle('mini');
+    if (k === 'escape') closePanel();
+  }
+  keys[k] = true;
+  if ([' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) e.preventDefault();
+});
+addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+
+function axis() {
+  let dx = 0, dy = 0;
+  if (keys['a'] || keys['arrowleft']) dx--;
+  if (keys['d'] || keys['arrowright']) dx++;
+  if (keys['w'] || keys['arrowup']) dy--;
+  if (keys['s'] || keys['arrowdown']) dy++;
+  return { dx, dy };
+}
+
+/* =========================================================================
+   플레이어
+   ========================================================================= */
+
+const PLAYER_SPEED = 148;
+
+function canStand(px, py) {
+  const hw = 8, hh = 5;
+  for (const [ox, oy] of [[-hw, -hh], [hw, -hh], [-hw, hh], [hw, hh]]) {
+    if (isSolid(Math.floor((px + ox) / TILE), Math.floor((py + oy) / TILE))) return false;
+  }
+  return true;
+}
+
+function updatePlayer(dt) {
+  const p = S.player;
+  if (p.act > 0) p.act -= dt;
+
+  if (S.fishing || dialogueOpen() || panelOpen() || p.act > 0.12) {
+    p.moving = false;
+  } else {
+    const a = axis();
+    const len = Math.hypot(a.dx, a.dy) || 1;
+    const vx = a.dx / len * PLAYER_SPEED * dt;
+    const vy = a.dy / len * PLAYER_SPEED * dt;
+    p.moving = !!(a.dx || a.dy);
+    if (a.dx || a.dy) {
+      if (Math.abs(a.dx) > Math.abs(a.dy)) p.dir = a.dx > 0 ? 'right' : 'left';
+      else p.dir = a.dy > 0 ? 'down' : 'up';
+    }
+    if (vx && canStand(p.x + vx, p.y)) p.x += vx;
+    if (vy && canStand(p.x, p.y + vy)) p.y += vy;
+    p.x = clamp(p.x, TILE, (MAP_W - 1) * TILE);
+    p.y = clamp(p.y, TILE, (MAP_H - 1) * TILE);
+  }
+  p.anim += (p.moving ? 9 : 3) * dt;
+}
+
+function facingTile() {
+  const p = S.player;
+  const d = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }[p.dir];
+  return {
+    x: Math.floor((p.x + d[0] * TILE * 0.85) / TILE),
+    y: Math.floor((p.y + d[1] * TILE * 0.85 - 4) / TILE),
+  };
+}
+
+function selectTool(i) {
+  if (S.fishing) return;
+  S.tool = clamp(i, 0, TOOLS.length - 1);
+  renderHotbar();
+}
+
+/* =========================================================================
+   상호작용
+   ========================================================================= */
+
+function interact() {
+  const p = S.player;
+  p.act = 0.32;
+  p.actKind = TOOLS[S.tool].id;
+
+  // 1) 주변 주민에게 말 걸기
+  const v = S.villagers.find(v => Math.hypot(v.x - p.x, v.y - p.y) < 52);
+  if (v) { talkTo(v); return; }
+
+  const f = facingTile();
+  const o = objAt(f.x, f.y);
+  const t = tileAt(f.x, f.y);
+  const tool = TOOLS[S.tool].id;
+
+  // 2) 건물
+  if (o && (o.t === 'house' || o.t === 'shop')) {
+    if (o.t === 'shop') openShop();
+    else openHome();
+    return;
+  }
+
+  switch (tool) {
+    case 'hand':   useHand(f, o, t); break;
+    case 'axe':    useAxe(f, o); break;
+    case 'shovel': useShovel(f, o, t); break;
+    case 'net':    useNet(); break;
+    case 'rod':    useRod(f, t); break;
+  }
+}
+
+function useHand(f, o, t) {
+  if (!o) { toast('아무것도 없어요.'); return; }
+  if (o.t === 'tree') {
+    o.shake = 0.45;
+    const rnd = Math.random();
+    if (o.fruit) { addItem(o.fruit, 1); o.fruit = null; }
+    else if (rnd < 0.22) addItem('branch', 1);
+    else if (rnd < 0.30) { gainBells(100); toast('💰 벨이 떨어졌다! +100'); }
+    else if (rnd < 0.36) { toast('🐝 벌집이 떨어졌다! 도망쳐!'); stungCheck(); }
+    else toast('나뭇잎만 우수수 떨어졌다…');
+  } else if (o.t === 'flower') {
+    addItem(o.id, 1); S.objects.delete(key(f.x, f.y));
+  } else if (o.t === 'weed') {
+    addItem('weed', 1); S.objects.delete(key(f.x, f.y));
+  } else if (o.t === 'shell') {
+    addItem('shell', 1); S.objects.delete(key(f.x, f.y));
+  } else if (o.t === 'rock') {
+    toast('맨손으론 무리야. 삽이나 도끼가 필요해!');
+  } else if (o.t === 'stump') {
+    toast('밑동이 남았네. 삽으로 뽑을 수 있어.');
+  } else if (o.t === 'sapling') {
+    toast('묘목이 자라는 중이야. 며칠 기다려보자!');
+  } else {
+    toast('아무것도 없어요.');
+  }
+}
+
+function useAxe(f, o) {
+  if (!o || o.t !== 'tree') { toast('나무를 향해 써보자!'); return; }
+  o.shake = 0.35;
+  o.hp--;
+  if (o.fruit && Math.random() < 0.5) { addItem(o.fruit, 1); o.fruit = null; }
+  if (o.hp <= 0) {
+    addItem(o.kind === 'palm' ? 'hardwood' : 'wood', 2);
+    S.objects.set(key(f.x, f.y), { t: 'stump' });
+    toast('🪵 나무를 베었다!');
+  } else {
+    addItem(Math.random() < 0.35 ? 'hardwood' : 'wood', 1);
+  }
+}
+
+function useShovel(f, o, t) {
+  const k = key(f.x, f.y);
+  if (o && o.t === 'rock') { hitRock(o); return; }
+  if (o && o.t === 'stump') { S.objects.delete(k); addItem('wood', 1); toast('밑동을 뽑아냈다!'); return; }
+  if (o && o.t === 'buried') {
+    S.objects.set(k, { t: 'hole' });
+    if (o.loot === 'bell_bag') { gainBells(1000); toast('💰 벨 주머니 발견! +1000'); }
+    else addItem(o.loot, 1);
+    return;
+  }
+  if (o && o.t === 'sapling') { S.objects.delete(k); addItem(o.fruit, 1); toast('묘목을 캐냈다.'); return; }
+  if (o && o.t === 'hole') {
+    // 과일을 갖고 있으면 심을지 물어보고, 없으면 그냥 메운다
+    if (S.inv.some(s => CATALOG[s.id].cat === 'fruit')) openPlantPrompt(f.x, f.y);
+    else { S.objects.delete(k); toast('구덩이를 메웠다.'); }
+    return;
+  }
+  if (o && (o.t === 'flower' || o.t === 'weed' || o.t === 'shell')) { toast('맨손으로 주울 수 있어!'); return; }
+  if (o) { toast('여기는 팔 수 없어.'); return; }
+  if (t === T_WATER) { toast('물은 팔 수 없지…'); return; }
+  S.objects.set(k, { t: 'hole' });
+  if (Math.random() < 0.06) addItem('clay', 1);
+  else toast('구덩이를 팠다. 과일을 들고 한 번 더 파면 심을 수 있어!');
+}
+
+function hitRock(o) {
+  const now = performance.now() / 1000;
+  if (o.cool && now - o.cool > 1.6) o.hits = 0;   // 연타가 끊기면 초기화
+  if (o.hits >= 5) { toast('이 바위는 오늘 더 나오지 않아.'); return; }
+  o.hits++; o.cool = now; o.bump = 0.25;
+  const r = Math.random();
+  if (r < 0.18) gainBells(240), toast('💰 벨이 튀어나왔다! +240');
+  else if (r < 0.30) addItem('iron', 1);
+  else if (r < 0.45) addItem('clay', 1);
+  else addItem('stone', 1);
+}
+
+function useNet() {
+  const p = S.player;
+  let best = -1, bd = 1e9;
+  S.bugs.forEach((b, i) => {
+    const d = Math.hypot(b.x - p.x, b.y - p.y);
+    if (d < bd) { bd = d; best = i; }
+  });
+  if (best < 0 || bd > 46) { toast('허공만 갈랐다…'); return; }
+  const b = S.bugs[best];
+  if (Math.random() < 0.82) {
+    addItem(b.def.id, 1); logCatch(b.def.id);
+    S.bugs.splice(best, 1);
+  } else {
+    toast('앗, 놓쳤다! ' + b.def.ic);
+    b.flee = 1.6;
+  }
+}
+
+function useRod(f, t) {
+  if (S.fishing) return;
+  if (t !== T_WATER) { toast('물가에서 던져보자!'); return; }
+  const sea = !nearRiver(f.x, f.y);
+  S.fishing = {
+    tx: f.x, ty: f.y, sea,
+    state: 'wait', timer: 1.2 + Math.random() * 4.2, fish: null,
+  };
+  setFishBar('🎣 찌를 지켜보는 중…', false);
+}
+
+/* 강인지 바다인지: 지도 가장자리와 연결되면 바다로 본다 */
+function nearRiver(x, y) {
+  const edge = Math.min(x, y, MAP_W - 1 - x, MAP_H - 1 - y);
+  return edge > 6;
+}
+
+function rollFish(sea) {
+  const pool = FISH.filter(f => sea ? true : !f.sea);
+  const weights = pool.map(f => 1 / (f.rare * f.rare));
+  const total = weights.reduce((a, b) => a + b, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < pool.length; i++) { r -= weights[i]; if (r <= 0) return pool[i]; }
+  return pool[0];
+}
+
+function updateFishing(dt) {
+  const F = S.fishing;
+  if (!F) return;
+  F.timer -= dt;
+  if (F.state === 'wait' && F.timer <= 0) {
+    F.state = 'bite'; F.timer = 0.95; F.fish = rollFish(F.sea);
+    setFishBar('❗ 지금이야! 스페이스!', true);
+  } else if (F.state === 'bite' && F.timer <= 0) {
+    toast('물고기가 도망갔다…');
+    endFishing();
+  }
+}
+
+function fishingPress() {
+  const F = S.fishing;
+  if (!F) return;
+  if (F.state === 'wait') { toast('너무 성급했어! 🎣'); endFishing(); return; }
+  const f = F.fish;
+  addItem(f.id, 1); logCatch(f.id);
+  toast(f.ic + ' ' + f.nm + '을(를) 낚았다!');
+  endFishing();
+}
+
+function endFishing() {
+  S.fishing = null;
+  setFishBar('', false, true);
+}
+
+function stungCheck() {
+  // 벌에 쏘이면 잠시 어지럽다 (연출용)
+  S.shakeT = 0.6;
+}
+
+/* =========================================================================
+   묘목 심기
+   ========================================================================= */
+
+function openPlantPrompt(x, y) {
+  const fruits = S.inv.filter(s => CATALOG[s.id].cat === 'fruit');
+  if (!fruits.length) return;
+  const html = fruits.map(s =>
+    '<div class="cell" data-plant="' + s.id + '"><div class="ico">' + CATALOG[s.id].ic +
+    '</div><div class="nm">' + CATALOG[s.id].nm + '</div><div class="ct">x' + s.n + '</div></div>').join('');
+  openSheet('구덩이에 심기', '과일을 묻으면 며칠 뒤 나무로 자라요.',
+    '<div class="grid">' + html + '</div>',
+    '<button class="btn ghost" data-fill="1">구덩이 메우기</button>' +
+    '<button class="btn ghost" data-close="1">그냥 두기</button>');
+  const fill = document.querySelector('[data-fill]');
+  if (fill) fill.onclick = () => { S.objects.delete(key(x, y)); toast('구덩이를 메웠다.'); closePanel(); };
+  document.querySelectorAll('[data-plant]').forEach(el => {
+    el.onclick = () => {
+      const id = el.dataset.plant;
+      if (!removeItem(id, 1)) return;
+      S.objects.set(key(x, y), { t: 'sapling', fruit: id, age: 0 });
+      toast('🌱 ' + CATALOG[id].nm + ' 묘목을 심었다!');
+      closePanel();
+    };
+  });
+}
+
+/* =========================================================================
+   주민 · 곤충 · 물고기 그림자
+   ========================================================================= */
+
+function updateVillagers(dt) {
+  for (const v of S.villagers) {
+    if (v.talking) { v.moving = false; continue; }
+    v.wait -= dt;
+    if (!v.moving && v.wait <= 0) {
+      // 근처 걸어갈 수 있는 칸을 하나 고른다
+      const tx = Math.floor(v.x / TILE) + Math.floor(Math.random() * 9) - 4;
+      const ty = Math.floor(v.y / TILE) + Math.floor(Math.random() * 9) - 4;
+      if (!isSolid(tx, ty)) {
+        v.tx = (tx + 0.5) * TILE; v.ty = (ty + 0.5) * TILE; v.moving = true;
+      } else v.wait = 0.6 + Math.random();
+    }
+    if (v.moving) {
+      const dx = v.tx - v.x, dy = v.ty - v.y;
+      const d = Math.hypot(dx, dy);
+      if (d < 3) { v.moving = false; v.wait = 1 + Math.random() * 3; }
+      else {
+        const sp = 52 * dt;
+        const nx = v.x + dx / d * sp, ny = v.y + dy / d * sp;
+        if (isSolid(Math.floor(nx / TILE), Math.floor(ny / TILE))) { v.moving = false; v.wait = 0.5; }
+        else {
+          v.x = nx; v.y = ny;
+          v.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+        }
+      }
+    }
+    v.anim += (v.moving ? 7 : 2.5) * dt;
+  }
+}
+
+function bugPool() {
+  const night = isNight();
+  return BUGS.filter(b => night ? b.night : b.day);
+}
+
+function updateBugs(dt) {
+  const p = S.player;
+  // 화면 주변에 일정 수 유지
+  while (S.bugs.length < 8) {
+    const pool = bugPool();
+    if (!pool.length) break;
+    const ang = Math.random() * Math.PI * 2;
+    const dist = 260 + Math.random() * 220;
+    const x = p.x + Math.cos(ang) * dist, y = p.y + Math.sin(ang) * dist;
+    const tx = Math.floor(x / TILE), ty = Math.floor(y / TILE);
+    if (tileAt(tx, ty) !== T_GRASS || isSolid(tx, ty)) break;
+    const weights = pool.map(b => 1 / b.rare);
+    const total = weights.reduce((a, b) => a + b, 0);
+    let r = Math.random() * total, def = pool[0];
+    for (let i = 0; i < pool.length; i++) { r -= weights[i]; if (r <= 0) { def = pool[i]; break; } }
+    S.bugs.push({ def, x, y, vx: 0, vy: 0, t: Math.random() * 6, flee: 0 });
+  }
+
+  for (let i = S.bugs.length - 1; i >= 0; i--) {
+    const b = S.bugs[i];
+    b.t += dt;
+    const d = Math.hypot(b.x - p.x, b.y - p.y);
+    if (d > 620) { S.bugs.splice(i, 1); continue; }
+    if (b.flee > 0) b.flee -= dt;
+
+    let sp = 18;
+    let ang = Math.sin(b.t * 1.3 + b.x * 0.01) * Math.PI;
+    if (b.flee > 0 || d < 42) {          // 가까이 오면 달아난다
+      ang = Math.atan2(b.y - p.y, b.x - p.x);
+      sp = 74;
+    }
+    const nx = b.x + Math.cos(ang) * sp * dt;
+    const ny = b.y + Math.sin(ang) * sp * dt;
+    const tx = Math.floor(nx / TILE), ty = Math.floor(ny / TILE);
+    if (tileAt(tx, ty) === T_GRASS || tileAt(tx, ty) === T_SAND) { b.x = nx; b.y = ny; }
+    else b.t += 1;
+  }
+}
+
+function updateFishShadows(dt) {
+  const p = S.player;
+  while (S.fishes.length < 10) {
+    const ang = Math.random() * Math.PI * 2;
+    const dist = 200 + Math.random() * 260;
+    const x = p.x + Math.cos(ang) * dist, y = p.y + Math.sin(ang) * dist;
+    if (tileAt(Math.floor(x / TILE), Math.floor(y / TILE)) !== T_WATER) break;
+    S.fishes.push({ x, y, a: Math.random() * 6.28, size: 0.7 + Math.random() * 1.1, t: Math.random() * 5 });
+  }
+  for (let i = S.fishes.length - 1; i >= 0; i--) {
+    const f = S.fishes[i];
+    f.t += dt;
+    if (Math.hypot(f.x - p.x, f.y - p.y) > 640) { S.fishes.splice(i, 1); continue; }
+    f.a += Math.sin(f.t * 0.8) * dt * 1.4;
+    const nx = f.x + Math.cos(f.a) * 22 * dt, ny = f.y + Math.sin(f.a) * 22 * dt;
+    if (tileAt(Math.floor(nx / TILE), Math.floor(ny / TILE)) === T_WATER) { f.x = nx; f.y = ny; }
+    else f.a += 2.2;
+  }
+}
+
+/* =========================================================================
+   UI — 토스트 · HUD · 핫바
+   ========================================================================= */
+
+const $ = id => document.getElementById(id);
+
+function toast(msg) {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  $('toasts').appendChild(el);
+  setTimeout(() => el.remove(), 2400);
+}
+
+function updateHUD() {
+  const h = Math.floor(S.minutes / 60), m = Math.floor(S.minutes % 60);
+  $('hClock').textContent = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+  $('hDate').textContent = S.day + '일차 · 금마의 숲';
+  $('hBells').textContent = S.bells.toLocaleString('ko-KR') + ' 벨';
+  $('weather').textContent =
+    S.weather === 'rain' ? '🌧️ 비' : S.weather === 'cloud' ? '☁️ 흐림' : isNight() ? '🌙 맑은 밤' : '☀️ 맑음';
+}
+
+function renderHotbar() {
+  $('hotbar').innerHTML = TOOLS.map((t, i) =>
+    '<div class="slot ' + (i === S.tool ? 'active' : '') + '" data-tool="' + i + '">' +
+    '<span class="key">' + (i + 1) + '</span>' + t.ic + '<span class="nm">' + t.nm + '</span></div>').join('');
+  document.querySelectorAll('[data-tool]').forEach(el => {
+    el.onclick = () => selectTool(+el.dataset.tool);
+  });
+}
+
+function setFishBar(text, bite, hide) {
+  const el = $('fishbar');
+  el.classList.toggle('on', !hide);
+  el.classList.toggle('bite', !!bite);
+  if (text) el.textContent = text;
+}
+
+/* =========================================================================
+   UI — 대화
+   ========================================================================= */
+
+let dlgQueue = [];
+function dialogueOpen() { return $('dialogue').classList.contains('on'); }
+
+function say(who, lines) {
+  dlgQueue = Array.isArray(lines) ? lines.slice() : [lines];
+  $('dWho').textContent = who;
+  $('dialogue').classList.add('on');
+  advanceDialogue();
+}
+
+function advanceDialogue() {
+  if (!dlgQueue.length) {
+    $('dialogue').classList.remove('on');
+    for (const v of S.villagers) v.talking = false;
+    if (dlgQueue.onEnd) { const f = dlgQueue.onEnd; dlgQueue.onEnd = null; f(); }
+    return;
+  }
+  $('dTxt').textContent = dlgQueue.shift();
+}
+
+$('dialogue').onclick = advanceDialogue;
+
+function talkTo(v) {
+  v.talking = true;
+  v.dir = { up: 'down', down: 'up', left: 'right', right: 'left' }[S.player.dir];
+  const lines = [];
+  if (Math.random() < 0.25) {
+    const item = S.inv.length ? pick(S.inv) : null;
+    if (item) lines.push('오, 그거 ' + CATALOG[item.id].nm + ' 아니야? 나도 갖고 싶다…');
+  }
+  lines.push(pick(v.def.lines));
+  if (S.day === 1 && Math.random() < 0.5) lines.push('금마의 숲에 온 걸 환영해! 천천히 둘러봐.');
+  say(v.def.name, lines);
+}
+
+/* =========================================================================
+   UI — 패널 (가방 · 상점 · 도감 · 집)
+   ========================================================================= */
+
+let panelKind = null;
+function panelOpen() { return $('overlay').classList.contains('on'); }
+
+function openSheet(title, sub, body, foot) {
+  $('sheet').innerHTML =
+    '<h2>' + title + '</h2><div class="sub">' + sub + '</div>' + body +
+    '<div class="foot">' + (foot || '<button class="btn" data-close="1">닫기</button>') + '</div>';
+  $('overlay').classList.add('on');
+  document.querySelectorAll('[data-close]').forEach(el => el.onclick = closePanel);
+}
+
+function closePanel() {
+  $('overlay').classList.remove('on');
+  panelKind = null;
+}
+
+function togglePanel(kind) {
+  if (S.paused) return;
+  if (panelOpen() && panelKind === kind) { closePanel(); return; }
+  panelKind = kind;
+  if (kind === 'inv') openInventory();
+  else if (kind === 'cat') openCatalog();
+}
+
+function itemCell(id, n, extra) {
+  const d = CATALOG[id];
+  return '<div class="cell" ' + (extra || '') + '><div class="ico">' + d.ic + '</div>' +
+    '<div class="nm">' + d.nm + '</div><div class="ct">x' + n + ' · ' + d.price + '벨</div></div>';
+}
+
+function openInventory() {
+  panelKind = 'inv';
+  const body = S.inv.length
+    ? '<div class="grid">' + S.inv.map(s => itemCell(s.id, s.n, 'data-drop="' + s.id + '"')).join('') + '</div>'
+    : '<div class="sub">가방이 텅 비었어요. 나무를 흔들어보세요!</div>';
+  const total = S.inv.reduce((a, s) => a + CATALOG[s.id].price * s.n, 0);
+  openSheet('🎒 가방', S.inv.length + ' / ' + S.invMax + '칸 · 전체 가치 ' + total.toLocaleString('ko-KR') + '벨', body);
+  document.querySelectorAll('[data-drop]').forEach(el => {
+    el.onclick = () => {
+      const id = el.dataset.drop;
+      if (CATALOG[id].cat === 'fruit') {
+        // 과일은 먹을 수 있다 (연출)
+        if (removeItem(id, 1)) { toast('🍽️ ' + CATALOG[id].nm + '을(를) 먹었다. 힘이 솟는다!'); openInventory(); }
+      } else {
+        toast(CATALOG[id].ic + ' ' + CATALOG[id].nm + ' · ' + CATALOG[id].price + '벨에 팔 수 있어요');
+      }
+    };
+  });
+}
+
+function openCatalog() {
+  panelKind = 'cat';
+  const rows = (title, list) => {
+    const cells = list.map(d => {
+      const n = S.caught[d.id] || 0;
+      return '<div class="cell ' + (n ? '' : 'dim') + '"><div class="ico">' + (n ? d.ic : '❔') + '</div>' +
+        '<div class="nm">' + (n ? d.nm : '???') + '</div><div class="ct">' + (n ? n + '마리' : '미발견') + '</div></div>';
+    }).join('');
+    return '<h2 style="margin-top:14px">' + title + '</h2><div class="grid">' + cells + '</div>';
+  };
+  const done = Object.keys(S.caught).length;
+  openSheet('📖 도감', '발견한 생물 ' + done + ' / ' + (FISH.length + BUGS.length) + '종',
+    rows('🐟 물고기', FISH) + rows('🦋 곤충', BUGS));
+}
+
+function openHome() {
+  const worth = S.inv.reduce((a, s) => a + CATALOG[s.id].price * s.n, 0);
+  openSheet('🏠 나의 집', S.day + '일차 · 소지금 ' + S.bells.toLocaleString('ko-KR') + '벨',
+    '<div class="sub">가방 가치 ' + worth.toLocaleString('ko-KR') + '벨 · 도감 ' +
+    Object.keys(S.caught).length + '종 · 심은 묘목 ' +
+    [...S.objects.values()].filter(o => o.t === 'sapling').length + '그루</div>',
+    '<button class="btn" data-sleep="1">🛏️ 다음 날까지 자기</button>' +
+    '<button class="btn ghost" data-save="1">💾 저장하기</button>' +
+    '<button class="btn ghost" data-close="1">닫기</button>');
+  const sl = document.querySelector('[data-sleep]');
+  if (sl) sl.onclick = () => {
+    closePanel();
+    S.minutes = 6 * 60; S.day++; onNewDay();
+    S.player.x = S.spawn.x; S.player.y = S.spawn.y;
+  };
+  const sv = document.querySelector('[data-save]');
+  if (sv) sv.onclick = () => { saveGame(); closePanel(); };
+}
+
+/* --- 너굴 상점 ----------------------------------------------------------- */
+const SHOP_STOCK = [
+  { id: 'coconut', mult: 3 }, { id: 'peach', mult: 3 },
+  { id: 'f_blue', mult: 3 }, { id: 'f_yellow', mult: 3 },
+];
+
+function openShop() {
+  panelKind = 'shop';
+  const sellable = S.inv.filter(s => CATALOG[s.id].price > 0);
+  const total = sellable.reduce((a, s) => a + CATALOG[s.id].price * s.n, 0);
+
+  const sell = sellable.length
+    ? '<div class="grid">' + sellable.map(s => itemCell(s.id, s.n, 'data-sell="' + s.id + '"')).join('') + '</div>'
+    : '<div class="sub">팔 물건이 없네요.</div>';
+
+  const buy = '<div class="grid">' + SHOP_STOCK.map(st => {
+    const d = CATALOG[st.id], price = d.price * st.mult;
+    return '<div class="cell" data-buy="' + st.id + '" data-price="' + price + '">' +
+      '<div class="ico">' + d.ic + '</div><div class="nm">' + d.nm + '</div>' +
+      '<div class="ct">' + price + '벨</div></div>';
+  }).join('') + '</div>';
+
+  openSheet('🦝 너굴 상점', '어서 오라구! 소지금 ' + S.bells.toLocaleString('ko-KR') + '벨',
+    '<h2 style="margin-top:6px">팔기</h2><div class="sub">누르면 1개, 전부 팔기는 아래 버튼으로.</div>' + sell +
+    '<h2 style="margin-top:16px">사기</h2><div class="sub">다른 섬에서 들여온 물건들이야.</div>' + buy,
+    '<button class="btn" data-sellall="1">전부 팔기 (' + total.toLocaleString('ko-KR') + '벨)</button>' +
+    '<button class="btn ghost" data-close="1">나가기</button>');
+
+  document.querySelectorAll('[data-sell]').forEach(el => el.onclick = () => {
+    const id = el.dataset.sell;
+    if (removeItem(id, 1)) { gainBells(CATALOG[id].price); toast('💰 ' + CATALOG[id].nm + ' 판매 +' + CATALOG[id].price); openShop(); }
+  });
+  document.querySelectorAll('[data-buy]').forEach(el => el.onclick = () => {
+    const id = el.dataset.buy, price = +el.dataset.price;
+    if (S.bells < price) { toast('벨이 부족해요!'); return; }
+    if (addItem(id, 1)) { S.bells -= price; updateHUD(); openShop(); }
+  });
+  const all = document.querySelector('[data-sellall]');
+  if (all) all.onclick = () => {
+    if (!total) { toast('팔 물건이 없어요.'); return; }
+    S.inv = S.inv.filter(s => CATALOG[s.id].price === 0);
+    gainBells(total);
+    toast('💰 전부 판매! +' + total.toLocaleString('ko-KR') + '벨');
+    openShop();
+  };
+}
+
+/* =========================================================================
+   저장 · 불러오기
+   ========================================================================= */
+
+function saveGame(silent) {
+  try {
+    const data = {
+      v: 1, seed: S.seed, day: S.day, minutes: S.minutes, bells: S.bells,
+      weather: S.weather, tool: S.tool, inv: S.inv, caught: S.caught,
+      player: { x: S.player.x, y: S.player.y, dir: S.player.dir },
+      spawn: S.spawn,
+      objects: [...S.objects.entries()],
+      tiles: Array.from(S.tiles),
+      villagers: S.villagers.map(v => ({ name: v.def.name, x: v.x, y: v.y })),
+    };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    if (!silent) toast('💾 섬을 저장했어요!');
+    return true;
+  } catch (e) {
+    if (!silent) toast('저장에 실패했어요…');
+    return false;
+  }
+}
+
+function hasSave() {
+  try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; }
+}
+
+function loadGame() {
+  try {
+    const data = JSON.parse(localStorage.getItem(SAVE_KEY));
+    if (!data) return false;
+    generateWorld(data.seed);
+    S.tiles = Uint8Array.from(data.tiles);
+    S.objects = new Map(data.objects);
+    S.day = data.day; S.minutes = data.minutes; S.bells = data.bells;
+    S.weather = data.weather || 'sunny'; S.tool = data.tool || 0;
+    S.inv = data.inv || []; S.caught = data.caught || {};
+    S.spawn = data.spawn || S.spawn;
+    S.player.x = data.player.x; S.player.y = data.player.y; S.player.dir = data.player.dir;
+    if (data.villagers) {
+      for (const sv of data.villagers) {
+        const v = S.villagers.find(v => v.def.name === sv.name);
+        if (v) { v.x = sv.x; v.y = sv.y; v.tx = sv.x; v.ty = sv.y; }
+      }
+    }
+    S.bugs = []; S.fishes = [];
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+/* =========================================================================
+   렌더링
+   ========================================================================= */
+
+const cv = $('game');
+const ctx = cv.getContext('2d');
+const ZOOM = 1.6;
+const cam = { x: 0, y: 0 };
+let view = { w: 800, h: 600 };
+let dpr = 1;
+
+function resize() {
+  dpr = Math.min(devicePixelRatio || 1, 2);
+  cv.width = Math.floor(innerWidth * dpr);
+  cv.height = Math.floor(innerHeight * dpr);
+  view.w = innerWidth / ZOOM;
+  view.h = innerHeight / ZOOM;
+}
+addEventListener('resize', resize);
+
+/* 타일마다 고정된 미세 변주값 */
+function hash2(x, y) {
+  let h = x * 374761393 + y * 668265263;
+  h = (h ^ (h >>> 13)) * 1274126177;
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+const GRASS = ['#7cb342', '#82ba46', '#76ac3e', '#8bc250'];
+const GRASS_N = ['#3e6b3a', '#436f3d', '#3a6636', '#476f41'];
+
+function drawTiles(time) {
+  const x0 = Math.max(0, Math.floor(cam.x / TILE)), x1 = Math.min(MAP_W - 1, Math.ceil((cam.x + view.w) / TILE));
+  const y0 = Math.max(0, Math.floor(cam.y / TILE)), y1 = Math.min(MAP_H - 1, Math.ceil((cam.y + view.h) / TILE));
+
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const t = tileAt(x, y);
+      const h = hash2(x, y);
+      const px = x * TILE, py = y * TILE;
+
+      if (t === T_WATER) {
+        const wob = Math.sin(time * 1.6 + x * 0.5 + y * 0.35);
+        ctx.fillStyle = wob > 0.55 ? '#4aa3c9' : wob < -0.6 ? '#2d7fa8' : '#3a92ba';
+        ctx.fillRect(px, py, TILE, TILE);
+      } else if (t === T_SAND) {
+        ctx.fillStyle = h > 0.8 ? '#efdcae' : h > 0.4 ? '#ead8a6' : '#e4d09c';
+        ctx.fillRect(px, py, TILE, TILE);
+      } else if (t === T_PATH) {
+        ctx.fillStyle = h > 0.5 ? '#d8c39a' : '#d2bc92';
+        ctx.fillRect(px, py, TILE, TILE);
+      } else {
+        ctx.fillStyle = GRASS[Math.floor(h * 4)];
+        ctx.fillRect(px, py, TILE, TILE);
+        // 풀 포기 몇 개
+        if (h > 0.72) {
+          ctx.fillStyle = 'rgba(255,255,255,.10)';
+          ctx.fillRect(px + 6 + h * 12, py + 8 + h * 10, 3, 6);
+          ctx.fillRect(px + 18 - h * 8, py + 18 + h * 6, 3, 5);
+        }
+      }
+
+      // 물가 흰 파도선
+      if (t === T_WATER) {
+        const up = tileAt(x, y - 1);
+        if (up === T_SAND || up === T_GRASS || up === T_PATH) {
+          ctx.fillStyle = 'rgba(255,255,255,.55)';
+          const off = Math.sin(time * 2 + x * 0.7) * 2;
+          ctx.fillRect(px, py + off, TILE, 3);
+        }
+      }
+    }
+  }
+}
+
+/* --- 개별 오브젝트 -------------------------------------------------------- */
+
+function drawShadow(x, y, rx, ry) {
+  ctx.fillStyle = 'rgba(20,40,20,.20)';
+  ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, 6.284); ctx.fill();
+}
+
+function drawTree(px, py, o, time) {
+  const sway = o.shake > 0 ? Math.sin(o.shake * 60) * o.shake * 14 : Math.sin(time * 1.1 + px * 0.05) * 1.2;
+  const cx = px + TILE / 2, base = py + TILE - 2;
+  drawShadow(cx, base, 15, 6);
+
+  if (o.kind === 'palm') {
+    ctx.strokeStyle = '#a3763f'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(cx, base); ctx.quadraticCurveTo(cx + sway * 0.4, base - 26, cx + sway, base - 46); ctx.stroke();
+    ctx.fillStyle = '#3f8c4b';
+    for (let i = 0; i < 5; i++) {
+      const a = -Math.PI / 2 + (i - 2) * 0.62;
+      ctx.beginPath();
+      ctx.ellipse(cx + sway + Math.cos(a) * 15, base - 48 + Math.sin(a) * 11, 16, 6, a, 0, 6.284);
+      ctx.fill();
+    }
+    if (o.fruit) {
+      ctx.fillStyle = '#8d6238';
+      ctx.beginPath(); ctx.arc(cx + sway - 5, base - 42, 5, 0, 6.284); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx + sway + 5, base - 44, 5, 0, 6.284); ctx.fill();
+    }
+    return;
+  }
+
+  ctx.fillStyle = '#8b5a2b';
+  ctx.fillRect(cx - 5, base - 22, 10, 22);
+  const cy = base - 40;
+  const leaf = ['#3f8c4b', '#4b9c56', '#357a41'];
+  const blobs = [[-13, 4, 15], [13, 4, 15], [0, -8, 18], [0, 6, 16]];
+  blobs.forEach((b, i) => {
+    ctx.fillStyle = leaf[i % 3];
+    ctx.beginPath(); ctx.arc(cx + b[0] + sway, cy + b[1], b[2], 0, 6.284); ctx.fill();
+  });
+  if (o.fruit) {
+    const col = { apple: '#e0392b', orange: '#f08c1e', peach: '#f6a5a0', cherry: '#c62039' }[o.fruit] || '#e0392b';
+    ctx.fillStyle = col;
+    [[-12, 2], [11, -2], [2, 12]].forEach(f => {
+      ctx.beginPath(); ctx.arc(cx + f[0] + sway, cy + f[1], 5, 0, 6.284); ctx.fill();
+    });
+  }
+}
+
+function drawRock(px, py, o) {
+  const cx = px + TILE / 2, base = py + TILE - 4;
+  const bump = o.bump > 0 ? Math.sin(o.bump * 50) * 3 : 0;
+  drawShadow(cx, base + 2, 13, 5);
+  ctx.fillStyle = '#8d8d8d';
+  ctx.beginPath();
+  ctx.moveTo(cx - 14, base + bump);
+  ctx.lineTo(cx - 10, base - 16 + bump);
+  ctx.lineTo(cx + 2, base - 21 + bump);
+  ctx.lineTo(cx + 13, base - 12 + bump);
+  ctx.lineTo(cx + 14, base + bump);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#a8a8a8';
+  ctx.beginPath();
+  ctx.moveTo(cx - 10, base - 16 + bump);
+  ctx.lineTo(cx + 2, base - 21 + bump);
+  ctx.lineTo(cx + 1, base - 8 + bump);
+  ctx.closePath(); ctx.fill();
+}
+
+function drawStump(px, py) {
+  const cx = px + TILE / 2, base = py + TILE - 6;
+  drawShadow(cx, base + 3, 11, 4);
+  ctx.fillStyle = '#7a5233'; ctx.fillRect(cx - 9, base - 7, 18, 8);
+  ctx.fillStyle = '#c49a6c';
+  ctx.beginPath(); ctx.ellipse(cx, base - 7, 9, 4.5, 0, 0, 6.284); ctx.fill();
+  ctx.strokeStyle = '#9a7a52'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.ellipse(cx, base - 7, 5, 2.4, 0, 0, 6.284); ctx.stroke();
+}
+
+function drawSapling(px, py, time) {
+  const cx = px + TILE / 2, base = py + TILE - 6;
+  const s = Math.sin(time * 1.5 + px) * 1.5;
+  drawShadow(cx, base + 2, 7, 3);
+  ctx.strokeStyle = '#5b8a3c'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(cx, base); ctx.lineTo(cx + s, base - 12); ctx.stroke();
+  ctx.fillStyle = '#63a344';
+  ctx.beginPath(); ctx.ellipse(cx - 5 + s, base - 13, 6, 3.5, -0.5, 0, 6.284); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(cx + 5 + s, base - 15, 6, 3.5, 0.5, 0, 6.284); ctx.fill();
+}
+
+function drawFlower(px, py, o, time) {
+  const cx = px + TILE / 2, base = py + TILE - 8;
+  const s = Math.sin(time * 2 + px * 0.1) * 1.2;
+  ctx.strokeStyle = '#4f8a35'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(cx, base); ctx.lineTo(cx + s, base - 9); ctx.stroke();
+  const col = { f_red: '#e2465c', f_white: '#fbf6ee', f_blue: '#6f8fe0', f_yellow: '#f2c53d' }[o.id];
+  ctx.fillStyle = col;
+  for (let i = 0; i < 5; i++) {
+    const a = i / 5 * 6.284;
+    ctx.beginPath(); ctx.arc(cx + s + Math.cos(a) * 4, base - 12 + Math.sin(a) * 4, 3.2, 0, 6.284); ctx.fill();
+  }
+  ctx.fillStyle = '#ffe27a';
+  ctx.beginPath(); ctx.arc(cx + s, base - 12, 2.4, 0, 6.284); ctx.fill();
+}
+
+function drawWeed(px, py, time) {
+  const cx = px + TILE / 2, base = py + TILE - 6;
+  const s = Math.sin(time * 1.8 + px * 0.2) * 1.4;
+  ctx.strokeStyle = '#4c7f34'; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+  for (const d of [-6, 0, 6]) {
+    ctx.beginPath(); ctx.moveTo(cx + d, base);
+    ctx.quadraticCurveTo(cx + d + s, base - 6, cx + d * 1.6 + s, base - 11);
+    ctx.stroke();
+  }
+}
+
+function drawShell(px, py) {
+  const cx = px + TILE / 2, base = py + TILE - 10;
+  ctx.fillStyle = '#f3d9d4';
+  ctx.beginPath(); ctx.arc(cx, base, 7, Math.PI, 0); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#d9a9a3'; ctx.lineWidth = 1;
+  for (let i = 1; i < 4; i++) {
+    ctx.beginPath(); ctx.moveTo(cx, base);
+    ctx.lineTo(cx - 7 + i * 3.5, base - 6.6); ctx.stroke();
+  }
+}
+
+function drawHole(px, py) {
+  const cx = px + TILE / 2, cy = py + TILE / 2 + 4;
+  ctx.fillStyle = '#6b4d2f';
+  ctx.beginPath(); ctx.ellipse(cx, cy, 12, 8, 0, 0, 6.284); ctx.fill();
+  ctx.fillStyle = '#3d2b18';
+  ctx.beginPath(); ctx.ellipse(cx, cy, 9, 5.5, 0, 0, 6.284); ctx.fill();
+}
+
+function drawBuried(px, py) {
+  const cx = px + TILE / 2, cy = py + TILE / 2 + 4;
+  ctx.strokeStyle = 'rgba(90,60,30,.8)'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(cx - 6, cy - 5); ctx.lineTo(cx + 6, cy + 5); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx + 6, cy - 5); ctx.lineTo(cx - 6, cy + 5); ctx.stroke();
+}
+
+function drawBuilding(px, py, type) {
+  // 루트 타일(정면 가운데)을 기준으로 3칸 폭 건물을 그린다
+  const cx = px + TILE / 2, base = py + TILE - 2;
+  const w = TILE * 3, h = 46;
+  drawShadow(cx, base, w / 2 - 4, 8);
+  const wall = type === 'shop' ? '#e8d7ae' : '#f0e0c2';
+  const roof = type === 'shop' ? '#4f8f6d' : '#c1553f';
+
+  ctx.fillStyle = wall;
+  ctx.fillRect(cx - w / 2, base - h, w, h);
+  ctx.fillStyle = 'rgba(0,0,0,.08)';
+  ctx.fillRect(cx - w / 2, base - 8, w, 8);
+
+  // 지붕
+  ctx.fillStyle = roof;
+  ctx.beginPath();
+  ctx.moveTo(cx - w / 2 - 8, base - h);
+  ctx.lineTo(cx, base - h - 30);
+  ctx.lineTo(cx + w / 2 + 8, base - h);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.12)';
+  ctx.beginPath();
+  ctx.moveTo(cx - w / 2 - 8, base - h);
+  ctx.lineTo(cx, base - h - 30);
+  ctx.lineTo(cx, base - h);
+  ctx.closePath(); ctx.fill();
+
+  // 문 · 창문
+  ctx.fillStyle = '#7a5233';
+  ctx.fillRect(cx - 11, base - 30, 22, 30);
+  ctx.fillStyle = '#ffe27a';
+  ctx.beginPath(); ctx.arc(cx + 6, base - 15, 2, 0, 6.284); ctx.fill();
+  ctx.fillStyle = isNight() ? '#ffe27a' : '#a8cbe0';
+  ctx.fillRect(cx - w / 2 + 10, base - 36, 16, 14);
+  ctx.fillRect(cx + w / 2 - 26, base - 36, 16, 14);
+
+  // 간판
+  ctx.font = 'bold 13px sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#fdf6e3';
+  ctx.fillRect(cx - 26, base - h - 22, 52, 16);
+  ctx.fillStyle = '#4a3728';
+  ctx.fillText(type === 'shop' ? '너굴상점' : '나의 집', cx, base - h - 14);
+}
+
+/* --- 캐릭터 -------------------------------------------------------------- */
+
+function drawChar(x, y, dir, anim, moving, opt) {
+  const bob = moving ? Math.abs(Math.sin(anim)) * 2.5 : Math.sin(anim * 0.5) * 0.8;
+  const legs = moving ? Math.sin(anim) * 4 : 0;
+  drawShadow(x, y, 10, 4.5);
+
+  // 다리
+  ctx.fillStyle = opt.dark || '#3f3f3f';
+  ctx.fillRect(x - 6, y - 8 + legs * 0.3, 5, 8 - legs * 0.3);
+  ctx.fillRect(x + 1, y - 8 - legs * 0.3, 5, 8 + legs * 0.3);
+
+  // 몸통
+  ctx.fillStyle = opt.body;
+  roundRect(x - 9, y - 24 - bob, 18, 18, 6);
+  ctx.fill();
+  if (opt.accent) {
+    ctx.fillStyle = opt.accent;
+    ctx.fillRect(x - 9, y - 14 - bob, 18, 5);
+  }
+
+  // 머리
+  const hy = y - 32 - bob;
+  if (opt.ears === 'rabbit') {
+    ctx.fillStyle = opt.body;
+    ctx.beginPath(); ctx.ellipse(x - 6, hy - 13, 3.5, 9, -0.2, 0, 6.284); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(x + 6, hy - 13, 3.5, 9, 0.2, 0, 6.284); ctx.fill();
+  } else if (opt.ears === 'cat') {
+    ctx.fillStyle = opt.body;
+    ctx.beginPath(); ctx.moveTo(x - 11, hy - 4); ctx.lineTo(x - 7, hy - 14); ctx.lineTo(x - 2, hy - 6); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x + 11, hy - 4); ctx.lineTo(x + 7, hy - 14); ctx.lineTo(x + 2, hy - 6); ctx.closePath(); ctx.fill();
+  } else if (opt.ears === 'bear' || opt.ears === 'mole') {
+    ctx.fillStyle = opt.body;
+    ctx.beginPath(); ctx.arc(x - 9, hy - 8, 4.5, 0, 6.284); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + 9, hy - 8, 4.5, 0, 6.284); ctx.fill();
+  } else if (opt.ears === 'chick') {
+    ctx.fillStyle = opt.accent;
+    ctx.beginPath(); ctx.moveTo(x - 2, hy - 11); ctx.lineTo(x + 2, hy - 17); ctx.lineTo(x + 5, hy - 10); ctx.closePath(); ctx.fill();
+  }
+
+  ctx.fillStyle = opt.head || opt.body;
+  ctx.beginPath(); ctx.arc(x, hy, 11, 0, 6.284); ctx.fill();
+
+  if (opt.hair) {  // 플레이어 머리카락
+    ctx.fillStyle = opt.hair;
+    ctx.beginPath(); ctx.arc(x, hy - 2, 11, Math.PI, 0); ctx.closePath(); ctx.fill();
+    ctx.fillRect(x - 11, hy - 3, 22, 3);
+  }
+
+  // 얼굴 (뒤를 볼 땐 생략)
+  if (dir !== 'up') {
+    const fx = dir === 'left' ? -3 : dir === 'right' ? 3 : 0;
+    ctx.fillStyle = '#2b2b2b';
+    ctx.beginPath(); ctx.arc(x + fx - 4, hy + 1, 1.8, 0, 6.284); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + fx + 4, hy + 1, 1.8, 0, 6.284); ctx.fill();
+    if (opt.beak) {
+      ctx.fillStyle = opt.accent;
+      ctx.beginPath(); ctx.moveTo(x + fx - 3, hy + 5); ctx.lineTo(x + fx + 3, hy + 5); ctx.lineTo(x + fx, hy + 9); ctx.closePath(); ctx.fill();
+    } else {
+      ctx.strokeStyle = '#2b2b2b'; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.arc(x + fx, hy + 4, 2.6, 0.2, Math.PI - 0.2); ctx.stroke();
+    }
+  }
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function drawPlayer() {
+  const p = S.player;
+  drawChar(p.x, p.y, p.dir, p.anim, p.moving, {
+    body: '#5a8fd6', accent: '#f4f4f4', head: '#f6d3b0', hair: '#5b3a29', dark: '#37507a',
+  });
+  // 사용 중인 도구
+  if (p.act > 0 || S.fishing) {
+    const d = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }[p.dir];
+    const swing = Math.sin((0.32 - Math.max(p.act, 0)) / 0.32 * Math.PI) * 8;
+    ctx.font = '20px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(TOOLS[S.tool].ic, p.x + d[0] * (14 + swing), p.y - 20 + d[1] * 8);
+  }
+}
+
+const SPECIES_OPT = {
+  chick:  { ears: 'chick', beak: true },
+  rabbit: { ears: 'rabbit' },
+  bear:   { ears: 'bear' },
+  cat:    { ears: 'cat' },
+  mole:   { ears: 'mole' },
+};
+
+function drawVillager(v) {
+  const o = Object.assign({ body: v.def.body, accent: v.def.accent, head: v.def.body, dark: '#5b4a3a' },
+                          SPECIES_OPT[v.def.species] || {});
+  drawChar(v.x, v.y, v.dir, v.anim, v.moving, o);
+  // 이름표
+  ctx.font = '11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgba(0,0,0,.35)';
+  const w = ctx.measureText(v.def.name).width + 10;
+  roundRect(v.x - w / 2, v.y - 58, w, 15, 7); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.fillText(v.def.name, v.x, v.y - 50);
+}
+
+/* --- 곤충 · 물고기 ------------------------------------------------------- */
+
+function drawBug(b) {
+  const fly = Math.sin(b.t * 6) * 3;
+  ctx.font = '18px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  drawShadow(b.x, b.y + 6, 5, 2.5);
+  ctx.fillText(b.def.ic, b.x, b.y - 10 + fly);
+}
+
+function drawFishShadow(f) {
+  ctx.fillStyle = 'rgba(10,40,60,.42)';
+  ctx.save();
+  ctx.translate(f.x, f.y); ctx.rotate(f.a);
+  ctx.beginPath(); ctx.ellipse(0, 0, 11 * f.size, 5.5 * f.size, 0, 0, 6.284); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-10 * f.size, 0);
+  ctx.lineTo(-17 * f.size, -5 * f.size);
+  ctx.lineTo(-17 * f.size, 5 * f.size);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function drawBobber(time) {
+  const F = S.fishing;
+  if (!F) return;
+  const x = (F.tx + 0.5) * TILE, y = (F.ty + 0.5) * TILE;
+  const bob = F.state === 'bite' ? Math.sin(time * 30) * 3 : Math.sin(time * 2.5) * 1.5;
+  ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(S.player.x, S.player.y - 22); ctx.lineTo(x, y + bob); ctx.stroke();
+  ctx.fillStyle = '#e2465c';
+  ctx.beginPath(); ctx.arc(x, y + bob, 5, 0, 6.284); ctx.fill();
+  ctx.fillStyle = '#fdf6e3';
+  ctx.beginPath(); ctx.arc(x, y + bob, 5, Math.PI, 0); ctx.closePath(); ctx.fill();
+  if (F.state === 'bite') {
+    ctx.font = 'bold 22px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#fff'; ctx.fillText('!', x, y - 22 + bob);
+  }
+}
+
+/* --- 조준 칸 표시 -------------------------------------------------------- */
+function drawTarget() {
+  if (S.fishing || dialogueOpen()) return;
+  const f = facingTile();
+  if (f.x < 0 || f.y < 0 || f.x >= MAP_W || f.y >= MAP_H) return;
+  ctx.strokeStyle = 'rgba(255,255,255,.45)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(f.x * TILE + 2, f.y * TILE + 2, TILE - 4, TILE - 4);
+}
+
+/* --- 낮/밤 · 날씨 -------------------------------------------------------- */
+
+function drawAmbient(time) {
+  const m = S.minutes;
+  let col = null;
+  if (m < 300) col = 'rgba(20,28,70,.52)';                       // 한밤
+  else if (m < 360) col = 'rgba(60,50,90,' + (0.5 - (m - 300) / 60 * 0.5) + ')';  // 새벽
+  else if (m < 1020) col = null;                                 // 낮
+  else if (m < 1140) col = 'rgba(220,120,50,' + ((m - 1020) / 120 * 0.26) + ')';  // 노을
+  else if (m < 1200) col = 'rgba(60,50,90,' + (0.26 + (m - 1140) / 60 * 0.26) + ')';
+  else col = 'rgba(20,28,70,.52)';
+  if (col) { ctx.fillStyle = col; ctx.fillRect(cam.x, cam.y, view.w, view.h); }
+
+  if (S.weather === 'rain') {
+    ctx.strokeStyle = 'rgba(200,225,255,.45)'; ctx.lineWidth = 1.4;
+    for (let i = 0; i < 90; i++) {
+      const seed = i * 97.13;
+      const x = cam.x + (seed * 7 + time * 120) % view.w;
+      const y = cam.y + (seed * 13 + time * 700) % view.h;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 3, y + 12); ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(80,100,130,.16)';
+    ctx.fillRect(cam.x, cam.y, view.w, view.h);
+  }
+}
+
+/* --- 프레임 -------------------------------------------------------------- */
+
+function render(time) {
+  const p = S.player;
+  cam.x = clamp(p.x - view.w / 2, 0, Math.max(0, MAP_W * TILE - view.w));
+  cam.y = clamp(p.y - view.h / 2, 0, Math.max(0, MAP_H * TILE - view.h));
+  let sx = 0, sy = 0;
+  if (S.shakeT > 0) { sx = (Math.random() - 0.5) * 8; sy = (Math.random() - 0.5) * 8; }
+
+  ctx.setTransform(dpr * ZOOM, 0, 0, dpr * ZOOM, 0, 0);
+  ctx.translate(-Math.round(cam.x) + sx, -Math.round(cam.y) + sy);
+  ctx.fillStyle = '#2d7fa8';
+  ctx.fillRect(cam.x - 20, cam.y - 20, view.w + 40, view.h + 40);
+
+  drawTiles(time);
+
+  // 바닥에 깔리는 것들
+  const x0 = Math.max(0, Math.floor(cam.x / TILE) - 1), x1 = Math.min(MAP_W - 1, Math.ceil((cam.x + view.w) / TILE));
+  const y0 = Math.max(0, Math.floor(cam.y / TILE) - 1), y1 = Math.min(MAP_H - 1, Math.ceil((cam.y + view.h) / TILE) + 2);
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    const o = objAt(x, y); if (!o) continue;
+    if (o.t === 'hole') drawHole(x * TILE, y * TILE);
+    else if (o.t === 'buried') drawBuried(x * TILE, y * TILE);
+  }
+
+  drawTarget();
+  for (const f of S.fishes) drawFishShadow(f);
+
+  // y 순으로 정렬해 겹침 처리
+  const ents = [];
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    const o = objAt(x, y); if (!o) continue;
+    if (o.t === 'hole' || o.t === 'buried') continue;
+    if ((o.t === 'house' || o.t === 'shop') && !o.root) continue;
+    ents.push({ y: y * TILE + TILE, kind: 'obj', o, x, ty: y });
+  }
+  for (const v of S.villagers) ents.push({ y: v.y, kind: 'vil', v });
+  for (const b of S.bugs) ents.push({ y: b.y, kind: 'bug', b });
+  ents.push({ y: S.player.y, kind: 'pl' });
+  ents.sort((a, b) => a.y - b.y);
+
+  for (const e of ents) {
+    if (e.kind === 'pl') { drawPlayer(); continue; }
+    if (e.kind === 'vil') { drawVillager(e.v); continue; }
+    if (e.kind === 'bug') { drawBug(e.b); continue; }
+    const px = e.x * TILE, py = e.ty * TILE, o = e.o;
+    if (o.t === 'tree') drawTree(px, py, o, time);
+    else if (o.t === 'rock') drawRock(px, py, o);
+    else if (o.t === 'stump') drawStump(px, py);
+    else if (o.t === 'sapling') drawSapling(px, py, time);
+    else if (o.t === 'flower') drawFlower(px, py, o, time);
+    else if (o.t === 'weed') drawWeed(px, py, time);
+    else if (o.t === 'shell') drawShell(px, py);
+    else if (o.t === 'house' || o.t === 'shop') drawBuilding(px, py, o.t);
+  }
+
+  drawBobber(time);
+  drawAmbient(time);
+}
+
+/* =========================================================================
+   메인 루프
+   ========================================================================= */
+
+let last = 0;
+function loop(ts) {
+  requestAnimationFrame(loop);
+  const time = ts / 1000;
+  let dt = Math.min(0.05, time - last);
+  last = time;
+  if (S.paused) return;
+
+  // 입력 처리
+  if (pressBuffer) {
+    pressBuffer = false;
+    if (dialogueOpen()) advanceDialogue();
+    else if (panelOpen()) closePanel();
+    else if (S.fishing) fishingPress();
+    else interact();
+  }
+
+  tickClock(dt);
+  updatePlayer(dt);
+  updateVillagers(dt);
+  updateBugs(dt);
+  updateFishShadows(dt);
+  updateFishing(dt);
+
+  if (S.shakeT > 0) S.shakeT -= dt;
+  for (const o of S.objects.values()) {
+    if (o.shake > 0) o.shake = Math.max(0, o.shake - dt * 1.6);
+    if (o.bump > 0) o.bump = Math.max(0, o.bump - dt * 1.6);
+  }
+
+  render(time);
+}
+
+/* =========================================================================
+   시작
+   ========================================================================= */
+
+function startGame(fromSave) {
+  if (fromSave) {
+    if (!loadGame()) { generateWorld((Math.random() * 1e9) | 0); }
+    else toast('💾 저장된 섬을 불러왔어요!');
+  } else {
+    generateWorld((Math.random() * 1e9) | 0);
+    S.inv = []; S.bells = 300; S.day = 1; S.minutes = 6 * 60; S.caught = {};
+    say('금마의 숲', [
+      '어서 오세요! 여기는 금마의 숲이에요.',
+      '나무를 흔들어 열매를 모으고, 도구를 바꿔가며 섬을 탐험해보세요.',
+      '모은 물건은 너굴 상점(🦝)에서 팔 수 있어요. 즐거운 섬 생활 되세요!',
+    ]);
+  }
+  S.paused = false;
+  $('title').classList.add('off');
+  resize();
+  renderHotbar();
+  updateHUD();
+}
+
+$('btnStart').onclick = () => startGame(false);
+$('btnLoad').onclick = () => startGame(true);
+$('help').onclick = () => $('help').classList.toggle('mini');
+
+// 자동 저장 (2분마다)
+setInterval(() => { if (!S.paused) saveGame(true); }, 120000);
+addEventListener('beforeunload', () => { if (!S.paused) saveGame(true); });
+
+if (hasSave()) $('btnLoad').style.display = '';
+resize();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
